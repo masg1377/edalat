@@ -1,0 +1,817 @@
+// Edalat Filter — data model
+// Source of truth: PRD §42–§51. Business rules that this schema encodes:
+//   Rule 1 — retail price and wholesale price are separate concepts.
+//   Rule 2 — wholesale pricing is quantity-based, never a single fixed number.
+//   Rule 3 — product/vehicle compatibility is a real relation, not free text.
+//   Rule 4 — replacement interval may differ per (product, vehicle) pair.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/* ------------------------------------------------------------------ */
+/* Enums                                                               */
+/* ------------------------------------------------------------------ */
+
+enum UserRole {
+  CUSTOMER
+  WHOLESALE_CUSTOMER
+  SALES_OPERATOR
+  CONTENT_MANAGER
+  MANUFACTURING_OPERATOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum PurchaseType {
+  RETAIL
+  WHOLESALE
+}
+
+enum OrderStatus {
+  PENDING
+  AWAITING_PAYMENT
+  PAID
+  PROCESSING
+  PACKED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+enum ManufacturingStatus {
+  SUBMITTED
+  REVIEWING
+  NEED_INFORMATION
+  FEASIBILITY_APPROVED
+  QUOTATION_SENT
+  AWAITING_CONFIRMATION
+  APPROVED
+  PRODUCTION
+  QUALITY_CONTROL
+  PACKAGING
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum IdentificationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  IDENTIFIED
+  AVAILABLE
+  NEED_MORE_INFORMATION
+  CAN_BE_MANUFACTURED
+  UNAVAILABLE
+  COMPLETED
+  REJECTED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  HIDDEN
+}
+
+enum FuelType {
+  PETROL
+  DIESEL
+  HYBRID
+  ELECTRIC
+  CNG
+  LPG
+}
+
+enum TransmissionType {
+  MANUAL
+  AUTOMATIC
+  CVT
+  DCT
+}
+
+enum NotificationChannel {
+  IN_APP
+  SMS
+  EMAIL
+}
+
+/* ------------------------------------------------------------------ */
+/* Users & auth                                                        */
+/* ------------------------------------------------------------------ */
+
+model User {
+  id            String    @id @default(cuid())
+  /// Primary credential for the Iranian market (PRD §30). Stored as 09xxxxxxxxx.
+  phone         String    @unique
+  phoneVerified Boolean   @default(false)
+  email         String?   @unique
+  emailVerified Boolean   @default(false)
+  passwordHash  String?
+  firstName     String?
+  lastName      String?
+  companyName   String?
+  /// National ID / company registration number, needed for wholesale invoices.
+  nationalId    String?
+  role          UserRole  @default(CUSTOMER)
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  addresses            Address[]
+  orders               Order[]
+  carts                Cart[]
+  reviews              Review[]
+  favorites            Favorite[]
+  savedVehicles        SavedVehicle[]
+  manufacturingRequests ManufacturingRequest[]
+  identificationRequests ProductIdentificationRequest[]
+  notifications        Notification[]
+  otpCodes             OtpCode[]
+  refreshTokens        RefreshToken[]
+  auditLogs            AuditLog[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model OtpCode {
+  id        String    @id @default(cuid())
+  phone     String
+  /// Hashed, never the plain code.
+  codeHash  String
+  purpose   String    @default("LOGIN")
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([phone, expiresAt])
+  @@map("otp_codes")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent String?
+  ipAddress String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Address {
+  id           String  @id @default(cuid())
+  userId       String
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String
+  recipientName String
+  phone        String
+  province     String
+  city         String
+  postalCode   String?
+  line         String
+  isDefault    Boolean @default(false)
+
+  orders    Order[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+/* ------------------------------------------------------------------ */
+/* Catalog                                                             */
+/* ------------------------------------------------------------------ */
+
+model Brand {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  slug        String  @unique
+  logoUrl     String?
+  description String?
+  country     String?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("brands")
+}
+
+model Category {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+  imageUrl    String?
+  iconUrl     String?
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  /// Self-relation gives the dynamic category tree required by PRD §14.
+  parentId String?
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryTree")
+
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([parentId])
+  @@map("categories")
+}
+
+model Product {
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  name           String
+  description    String?
+  shortDescription String?
+  sku            String   @unique
+  /// Edalat Filter's own part number. Exact matches on this rank highest (PRD §40).
+  technicalCode  String?
+  /// Cross-reference codes from OEMs and other brands.
+  oemCodes       String[] @default([])
+  /// Extra search terms: colloquial names, common misspellings (PRD §39).
+  aliases        String[] @default([])
+  keywords       String[] @default([])
+
+  brandId String?
+  brand   Brand?  @relation(fields: [brandId], references: [id], onDelete: SetNull)
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  mainImageUrl String?
+  images       String[] @default([])
+  /// Free-form technical spec sheet: { "قطر بیرونی": "76 mm", ... }
+  specifications Json    @default("{}")
+
+  /// Rule 1 — retail price is independent of any wholesale tier.
+  retailPrice     Decimal  @db.Decimal(14, 0)
+  compareAtPrice  Decimal? @db.Decimal(14, 0)
+  /// Minimum quantity for a WHOLESALE line item. Enforced server-side.
+  minWholesaleQty Int      @default(1)
+
+  stockQuantity    Int @default(0)
+  reservedQuantity Int @default(0)
+
+  /// Default replacement guidance; a (product, vehicle) pair may override it.
+  replacementKm     Int?
+  replacementKmMax  Int?
+  replacementMonths Int?
+  replacementNotes  String?
+
+  isActive       Boolean @default(true)
+  isManufactured Boolean @default(false) // produced by Edalat Filter itself
+  isFeatured     Boolean @default(false)
+  salesCount     Int     @default(0)
+  viewCount      Int     @default(0)
+  ratingAverage  Float   @default(0)
+  ratingCount    Int     @default(0)
+
+  metaTitle       String?
+  metaDescription String?
+
+  wholesaleRules  WholesalePriceRule[]
+  compatibilities ProductVehicleCompatibility[]
+  reviews         Review[]
+  favorites       Favorite[]
+  cartItems       CartItem[]
+  orderItems      OrderItem[]
+  identifiedIn    ProductIdentificationRequest[]
+  relatedTo       ProductRelation[]             @relation("RelationSource")
+  relatedFrom     ProductRelation[]             @relation("RelationTarget")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([brandId])
+  @@index([categoryId])
+  @@index([technicalCode])
+  @@index([isActive, isFeatured])
+  @@index([salesCount])
+  @@map("products")
+}
+
+/// PRD §38 — curated "related" / "similar" links between products.
+model ProductRelation {
+  id       String  @id @default(cuid())
+  sourceId String
+  source   Product @relation("RelationSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  targetId String
+  target   Product @relation("RelationTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  /// RELATED | SIMILAR | FREQUENTLY_BOUGHT
+  kind     String
+  sortOrder Int    @default(0)
+
+  @@unique([sourceId, targetId, kind])
+  @@index([targetId])
+  @@map("product_relations")
+}
+
+/// Rule 2 — quantity-based wholesale pricing. `maxQuantity == null` means "and above".
+model WholesalePriceRule {
+  id          String  @id @default(cuid())
+  productId   String
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  minQuantity Int
+  maxQuantity Int?
+  unitPrice   Decimal @db.Decimal(14, 0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, minQuantity])
+  @@index([productId])
+  @@map("wholesale_price_rules")
+}
+
+/* ------------------------------------------------------------------ */
+/* Vehicles                                                            */
+/* ------------------------------------------------------------------ */
+
+model VehicleBrand {
+  id        String  @id @default(cuid())
+  name      String  @unique
+  nameEn    String?
+  slug      String  @unique
+  logoUrl   String?
+  country   String?
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  vehicles  Vehicle[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("vehicle_brands")
+}
+
+model Vehicle {
+  id      String       @id @default(cuid())
+  slug    String       @unique
+  brandId String
+  brand   VehicleBrand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  model      String
+  generation String?
+  yearFrom   Int?
+  yearTo     Int?
+  bodyType   String?
+
+  engine       String?
+  engineCode   String?
+  displacement Int? // cc
+  fuelType     FuelType?
+  transmission TransmissionType?
+
+  imageUrl       String?
+  specifications Json    @default("{}")
+  isActive       Boolean @default(true)
+
+  service         VehicleServiceInfo?
+  compatibilities ProductVehicleCompatibility[]
+  savedBy         SavedVehicle[]
+
+  metaTitle       String?
+  metaDescription String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([brandId])
+  @@index([model])
+  @@index([engineCode])
+  @@map("vehicles")
+}
+
+/// PRD §24 — the "Service Information" block of a vehicle detail page.
+model VehicleServiceInfo {
+  id        String  @id @default(cuid())
+  vehicleId String  @unique
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  engineOilGrade           String?
+  engineOilCapacityLiters  Decimal? @db.Decimal(4, 1)
+  oilChangeKm              Int?
+  oilFilterChangeKm        Int?
+  airFilterChangeKm        Int?
+  cabinFilterChangeKm      Int?
+  fuelFilterChangeKm       Int?
+  notes                    String?
+
+  updatedAt DateTime @updatedAt
+
+  @@map("vehicle_service_info")
+}
+
+/// Rule 3 & 4 — the join that powers "which parts fit this car" and
+/// "which other cars share this part", with per-pair replacement overrides.
+model ProductVehicleCompatibility {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  vehicleId String
+  vehicle   Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  /// False when the part fits with a caveat (adapter, trimming, partial years).
+  isExactFit Boolean @default(true)
+  notes      String?
+
+  replacementKm     Int?
+  replacementKmMax  Int?
+  replacementMonths Int?
+
+  createdAt DateTime @default(now())
+
+  @@unique([productId, vehicleId])
+  @@index([vehicleId])
+  @@index([productId])
+  @@map("product_vehicle_compatibility")
+}
+
+/// PRD §26 — "My vehicles" saved on a customer account.
+model SavedVehicle {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  nickname  String?
+  plateNo   String?
+  year      Int?
+  mileageKm Int?
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, vehicleId])
+  @@map("saved_vehicles")
+}
+
+/* ------------------------------------------------------------------ */
+/* Cart & orders                                                       */
+/* ------------------------------------------------------------------ */
+
+model Cart {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Anonymous carts are keyed by a signed cookie.
+  sessionKey String? @unique
+
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([userId])
+  @@map("carts")
+}
+
+model CartItem {
+  id     String @id @default(cuid())
+  cartId String
+  cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  /// PRD §33 — retail and wholesale lines may coexist in one cart.
+  purchaseType PurchaseType @default(RETAIL)
+  quantity     Int
+
+  /// Cached for display only; the server recomputes on every read and at checkout.
+  unitPriceSnapshot Decimal @db.Decimal(14, 0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([cartId, productId, purchaseType])
+  @@map("cart_items")
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  orderNumber String      @unique
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+  status      OrderStatus @default(PENDING)
+
+  addressId String?
+  address   Address? @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  /// Frozen copy of the address so later edits don't rewrite history.
+  shippingSnapshot Json?
+
+  subtotal      Decimal @db.Decimal(14, 0)
+  discountTotal Decimal @default(0) @db.Decimal(14, 0)
+  shippingTotal Decimal @default(0) @db.Decimal(14, 0)
+  taxTotal      Decimal @default(0) @db.Decimal(14, 0)
+  grandTotal    Decimal @db.Decimal(14, 0)
+
+  shippingMethod String?
+  trackingCode   String?
+  customerNote   String?
+  adminNote      String?
+
+  items    OrderItem[]
+  payments Payment[]
+
+  paidAt      DateTime?
+  shippedAt   DateTime?
+  deliveredAt DateTime?
+  cancelledAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  /// Denormalized so an invoice still reads correctly if the product changes.
+  productName   String
+  productSku    String
+  technicalCode String?
+
+  purchaseType PurchaseType
+  quantity     Int
+  unitPrice    Decimal      @db.Decimal(14, 0)
+  lineTotal    Decimal      @db.Decimal(14, 0)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model Payment {
+  id       String  @id @default(cuid())
+  orderId  String
+  order    Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  gateway  String
+  amount   Decimal @db.Decimal(14, 0)
+  /// INITIATED | SUCCEEDED | FAILED | REFUNDED
+  status   String  @default("INITIATED")
+  authority String?
+  refId     String?
+  rawPayload Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@map("payments")
+}
+
+/* ------------------------------------------------------------------ */
+/* Engagement                                                          */
+/* ------------------------------------------------------------------ */
+
+model Review {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  rating    Int
+  title     String?
+  comment   String?
+  status    ReviewStatus @default(PENDING)
+  /// True when the reviewer actually bought the product.
+  isVerifiedPurchase Boolean @default(false)
+  adminNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId])
+  @@index([productId, status])
+  @@map("reviews")
+}
+
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@map("favorites")
+}
+
+/* ------------------------------------------------------------------ */
+/* Requests                                                            */
+/* ------------------------------------------------------------------ */
+
+/// PRD §48 — private-label production enquiry. Never an order.
+model ManufacturingRequest {
+  id              String              @id @default(cuid())
+  referenceNumber String              @unique
+  userId          String?
+  user            User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  status          ManufacturingStatus @default(SUBMITTED)
+
+  contactName String
+  companyName String?
+  phone       String
+  email       String?
+  province    String?
+  city        String?
+  address     String?
+  preferredContactMethod String?
+
+  brandName        String
+  logoUrl          String?
+  packagingDesignUrl String?
+
+  productCategoryId String?
+  productType       String
+  productName       String?
+  technicalCode     String?
+  targetVehicles    String?
+  quantity          Int
+
+  productImageUrl String?
+  sampleImageUrl  String?
+  attachments     String[] @default([])
+  description     String?
+
+  quotedUnitPrice Decimal? @db.Decimal(14, 0)
+  quotedAt        DateTime?
+  adminNotes      String?
+  assignedToId    String?
+
+  events    RequestEvent[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([status])
+  @@index([userId])
+  @@map("manufacturing_requests")
+}
+
+/// PRD §49 — "I don't know what this part is, here's a photo".
+model ProductIdentificationRequest {
+  id              String               @id @default(cuid())
+  referenceNumber String               @unique
+  userId          String?
+  user            User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  status          IdentificationStatus @default(SUBMITTED)
+
+  images       String[] @default([])
+  vehicleLabel String?
+  vehicleId    String?
+  possibleName String?
+  possibleCode String?
+  brandGuess   String?
+  quantity     Int      @default(1)
+  description  String?
+
+  contactPhone String?
+
+  identifiedProductId String?
+  identifiedProduct   Product? @relation(fields: [identifiedProductId], references: [id], onDelete: SetNull)
+  adminResponse       String?
+  adminNotes          String?
+
+  events    RequestEvent[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([status])
+  @@index([userId])
+  @@map("product_identification_requests")
+}
+
+/// Shared audit trail for both request types, so the customer-facing timeline
+/// and the admin history come from one place.
+model RequestEvent {
+  id        String   @id @default(cuid())
+  fromStatus String?
+  toStatus   String
+  note       String?
+  actorId    String?
+  isPublic   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  manufacturingRequestId String?
+  manufacturingRequest   ManufacturingRequest? @relation(fields: [manufacturingRequestId], references: [id], onDelete: Cascade)
+
+  identificationRequestId String?
+  identificationRequest   ProductIdentificationRequest? @relation(fields: [identificationRequestId], references: [id], onDelete: Cascade)
+
+  @@index([manufacturingRequestId])
+  @@index([identificationRequestId])
+  @@map("request_events")
+}
+
+/* ------------------------------------------------------------------ */
+/* Ops: notifications, analytics, audit                                */
+/* ------------------------------------------------------------------ */
+
+model Notification {
+  id      String              @id @default(cuid())
+  userId  String
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel NotificationChannel @default(IN_APP)
+  /// ORDER_STATUS | MANUFACTURING_STATUS | IMAGE_REQUEST | STOCK | PAYMENT
+  kind    String
+  title   String
+  body    String?
+  href    String?
+  readAt  DateTime?
+  sentAt  DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+/// PRD §68 — every query is logged so the team learns what stock to add.
+model SearchQueryLog {
+  id             String   @id @default(cuid())
+  rawQuery       String
+  normalizedQuery String
+  resultCount    Int
+  /// TEXT | VOICE | CODE | VEHICLE | IMAGE
+  source         String   @default("TEXT")
+  vehicleId      String?
+  userId         String?
+  sessionKey     String?
+  createdAt      DateTime @default(now())
+
+  @@index([normalizedQuery])
+  @@index([resultCount])
+  @@index([createdAt])
+  @@map("search_query_logs")
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  name      String
+  payload   Json     @default("{}")
+  userId    String?
+  sessionKey String?
+  createdAt DateTime @default(now())
+
+  @@index([name, createdAt])
+  @@map("analytics_events")
+}
+
+/// PRD §65 — audit trail for consequential admin changes.
+model AuditLog {
+  id       String  @id @default(cuid())
+  actorId  String?
+  actor    User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action   String
+  entity   String
+  entityId String?
+  before   Json?
+  after    Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
+/// Editable copy for banners, the manufacturing landing page, FAQs, etc.
+model ContentBlock {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  title     String?
+  body      String?
+  data      Json     @default("{}")
+  isActive  Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+
+  @@map("content_blocks")
+}

@@ -1,0 +1,162 @@
+@import 'tailwindcss';
+
+/* Self-hosted open fallback — no external font request, works offline. */
+@import '@fontsource-variable/vazirmatn';
+
+/* The Figma file specifies IRANYekanX (a licensed font). Drop the licensed
+   .woff2 files into apps/web/public/fonts/ and they take over automatically;
+   until then Vazirmatn carries the same metrics closely enough. */
+@font-face {
+  font-family: 'IRANYekanX';
+  src: url('/fonts/IRANYekanX-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IRANYekanX';
+  src: url('/fonts/IRANYekanX-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'IRANYekanX';
+  src: url('/fonts/IRANYekanX-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-display: swap;
+}
+
+/* ------------------------------------------------------------------ */
+/* Design tokens — extracted from the Figma file (Filter-site).        */
+/* Figma uses IRANYekanX; Vazirmatn is the open fallback so the layout */
+/* holds even before the licensed font files are dropped in /public.   */
+/* ------------------------------------------------------------------ */
+
+@theme {
+  /* Brand */
+  --color-brand-50: #fffdf0;
+  --color-brand-100: #fff9d1;
+  --color-brand-200: #fff3a3;
+  --color-brand-300: #ffec6b;
+  --color-brand-400: #ffe533;
+  --color-brand-500: #fedd00; /* primary — CTA yellow */
+  --color-brand-600: #d9bc00;
+  --color-brand-700: #a68f00;
+
+  /* Ink — the warm charcoal used for the header pill, footer and dark cards */
+  --color-ink-50: #f6f5f4;
+  --color-ink-100: #e9e7e5;
+  --color-ink-200: #cfcbc7;
+  --color-ink-300: #a9a39d;
+  --color-ink-400: #7c7671;
+  --color-ink-500: #605b56;
+  --color-ink-600: #4e4b47; /* secondary — dark surfaces */
+  --color-ink-700: #3c3936;
+  --color-ink-800: #2a2825;
+  --color-ink-900: #1a1917;
+
+  /* Neutral surfaces */
+  --color-sand: #e1dddb; /* search bar / muted button background */
+  --color-surface: #ededed; /* card background */
+  --color-surface-soft: #f9f9f9;
+
+  /* Typography */
+  --font-sans:
+    'IRANYekanX', 'Vazirmatn Variable', 'Vazirmatn', ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', sans-serif;
+
+  /* Radii — Figma leans on very round corners: 40px pills, 24px cards */
+  --radius-card: 1.5rem;
+  --radius-pill: 2.5rem;
+
+  --shadow-card: 0 4px 24px rgb(0 0 0 / 0.06);
+  --shadow-float: 0 8px 32px rgb(0 0 0 / 0.1);
+}
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                */
+/* ------------------------------------------------------------------ */
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background: #ffffff;
+    color: var(--color-ink-800);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Persian text reads better with slightly looser lines. */
+  p,
+  li {
+    line-height: 1.9;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    line-height: 1.5;
+    font-weight: 700;
+  }
+
+  /* PRD §61 — part numbers, SKUs and prices stay left-to-right even inside
+     a right-to-left paragraph, otherwise "LF16352" renders reversed. */
+  .ltr-num {
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+
+  /* Only inline-level text needs the isolation box; on a list item or block
+     element `inline-block` would collapse siblings onto one line. */
+  span.ltr-num,
+  b.ltr-num,
+  a.ltr-num {
+    display: inline-block;
+  }
+
+  /* Chrome/Safari render number inputs with spinners that break RTL alignment. */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ink-600);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  .container-page {
+    width: 100%;
+    max-width: 90rem; /* 1440px — the Figma canvas width */
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+
+  @media (min-width: 768px) {
+    .container-page {
+      padding-inline: 2.5rem;
+    }
+  }
+}
+
+@layer utilities {
+  /* Section heading with the yellow rule the Figma design puts beside titles. */
+  .heading-rule::before {
+    content: '';
+    position: absolute;
+    inset-inline-start: -0.75rem;
+    top: 50%;
+    translate: 0 -50%;
+    width: 4px;
+    height: 1.75rem;
+    border-radius: 999px;
+    background: var(--color-brand-500);
+  }
+}
