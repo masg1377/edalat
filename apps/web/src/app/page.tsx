@@ -32,7 +32,7 @@ export default async function HomePage() {
         <CategoryStrip categories={categories} />
         <VehiclePanel vehicle={null} />
         <BrandStrip brands={vehicleBrands} />
-        <ProductRail title="پر فروش ترین محصولات" products={bestSelling} moreHref="/store" />
+        <ProductRail title="پر فروش ترین محصولات" products={bestSelling} moreHref="/products" />
         <PrivateLabelBanner />
         <TrustBar />
       </main>

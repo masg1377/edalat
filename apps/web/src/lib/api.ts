@@ -1,7 +1,8 @@
 import type {
   BrandSummary,
+  CatalogResponse,
   CategorySummary,
-  Paginated,
+  PriceQuote,
   ProductDetail,
   ProductSummary,
   SearchResponse,
@@ -37,6 +38,7 @@ async function request<T>(path: string, options: FetchOptions = {}): Promise<T> 
   });
 
   if (!response.ok) {
+    // Never surface a raw backend body to the UI — map it to Persian copy.
     let message = 'خطایی رخ داد. لطفاً دوباره تلاش کنید.';
     try {
       const body = (await response.json()) as { message?: string | string[] };
@@ -52,10 +54,12 @@ async function request<T>(path: string, options: FetchOptions = {}): Promise<T> 
   return response.json() as Promise<T>;
 }
 
-function query(params: Record<string, string | number | boolean | undefined>): string {
+export type QueryValue = string | number | boolean | undefined | null;
+
+function query(params: Record<string, QueryValue>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== '') search.set(key, String(value));
+    if (value !== undefined && value !== null && value !== '') search.set(key, String(value));
   }
   const qs = search.toString();
   return qs ? `?${qs}` : '';
@@ -65,8 +69,12 @@ function query(params: Record<string, string | number | boolean | undefined>): s
 
 export const api = {
   products: {
-    list: (params: Record<string, string | number | boolean | undefined> = {}) =>
-      request<Paginated<ProductSummary>>(`/products${query(params)}`, { revalidate: 60 }),
+    /**
+     * The catalog. Filtering, sorting, paging and ranking all happen server
+     * side; this call just forwards whatever the URL says.
+     */
+    catalog: (params: Record<string, QueryValue> = {}) =>
+      request<CatalogResponse>(`/products${query(params)}`, { revalidate: 60 }),
 
     featured: (limit = 8) =>
       request<ProductSummary[]>(`/products/featured${query({ limit })}`, { revalidate: 300 }),
@@ -78,17 +86,17 @@ export const api = {
 
     /** PRD §81 — never compute a price in the browser. */
     price: (productId: string, quantity: number, purchaseType: 'RETAIL' | 'WHOLESALE') =>
-      request<import('@edalat/shared').PriceQuote>(
-        `/products/${productId}/price${query({ quantity, purchaseType })}`,
-        { revalidate: 0 },
-      ),
+      request<PriceQuote>(`/products/${productId}/price${query({ quantity, purchaseType })}`, {
+        revalidate: 0,
+      }),
   },
 
   categories: {
     list: () => request<CategorySummary[]>('/categories', { revalidate: 600 }),
-    tree: () => request<Array<CategorySummary & { children: CategorySummary[] }>>('/categories/tree', {
-      revalidate: 600,
-    }),
+    tree: () =>
+      request<Array<CategorySummary & { children: CategorySummary[] }>>('/categories/tree', {
+        revalidate: 600,
+      }),
   },
 
   brands: {
@@ -100,10 +108,16 @@ export const api = {
 
   vehicles: {
     brands: () =>
-      request<Array<{ id: string; name: string; nameEn: string | null; slug: string; logoUrl: string | null; vehicleCount: number }>>(
-        '/vehicles/brands',
-        { revalidate: 600 },
-      ),
+      request<
+        Array<{
+          id: string;
+          name: string;
+          nameEn: string | null;
+          slug: string;
+          logoUrl: string | null;
+          vehicleCount: number;
+        }>
+      >('/vehicles/brands', { revalidate: 600 }),
     models: (brandSlug: string) =>
       request<string[]>(`/vehicles/brands/${brandSlug}/models`, { revalidate: 600 }),
     variants: (brandSlug: string, model: string) =>
@@ -111,13 +125,15 @@ export const api = {
         `/vehicles/brands/${brandSlug}/models/${encodeURIComponent(model)}/variants`,
         { revalidate: 600 },
       ),
-    bySlug: (slug: string) => request<VehicleDetail>(`/vehicles/${slug}`, { revalidate: 300 }),
+    /** Resolves by slug (SEO pages) or id (catalog `vehicleId` filter). */
+    bySlugOrId: (slugOrId: string) =>
+      request<VehicleDetail>(`/vehicles/${slugOrId}`, { revalidate: 300 }),
     products: (vehicleId: string) =>
       request<ProductSummary[]>(`/vehicles/${vehicleId}/products`, { revalidate: 300 }),
   },
 
   search: {
-    query: (params: Record<string, string | number | boolean | undefined>) =>
+    query: (params: Record<string, QueryValue>) =>
       request<SearchResponse>(`/search${query(params)}`, { revalidate: 0 }),
     suggestions: (q: string) =>
       request<SearchSuggestion[]>(`/search/suggestions${query({ q })}`, { revalidate: 0 }),
@@ -133,5 +149,25 @@ export async function safe<T>(promise: Promise<T>, fallback: T): Promise<T> {
     return await promise;
   } catch {
     return fallback;
+  }
+}
+
+/**
+ * Like `safe`, but tells the caller whether the call failed, so a page can
+ * distinguish "no results" (empty state) from "API is down" (error state).
+ */
+export async function attempt<T>(promise: Promise<T>): Promise<
+  { ok: true; data: T } | { ok: false; error: string }
+> {
+  try {
+    return { ok: true, data: await promise };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof ApiError
+          ? error.message
+          : 'ارتباط با سرور برقرار نشد. اتصال اینترنت خود را بررسی کنید.',
+    };
   }
 }

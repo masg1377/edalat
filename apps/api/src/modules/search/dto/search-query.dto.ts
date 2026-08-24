@@ -1,8 +1,19 @@
 import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
-import { PurchaseType } from '@edalat/shared';
+import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, PurchaseType } from '@edalat/shared';
 
-const toBool = ({ value }: { value: unknown }) => value === true || value === 'true' || value === '1';
+/**
+ * Reads the boolean from the *raw* query object, not from `value`.
+ *
+ * The global ValidationPipe runs with `enableImplicitConversion`, which casts
+ * the string before `@Transform` sees it — and `Boolean('false')` is `true`.
+ * Going back to `obj[key]` is what makes `?inStock=false` actually mean false.
+ */
+const toBool = ({ obj, key }: { obj: Record<string, unknown>; key: string }) => {
+  const raw = obj?.[key];
+  if (typeof raw === 'boolean') return raw;
+  return raw === 'true' || raw === '1';
+};
 
 export class SearchQueryDto {
   @IsOptional()
@@ -61,6 +72,6 @@ export class SearchQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(60)
-  pageSize: number = 24;
+  @Max(MAX_PAGE_SIZE)
+  limit: number = DEFAULT_PAGE_SIZE;
 }

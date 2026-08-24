@@ -66,9 +66,14 @@ export class VehiclesService {
     return rows.map(mapVehicleSummary);
   }
 
-  async findBySlug(slug: string): Promise<VehicleDetail> {
+  /**
+   * Accepts a slug or an id. Catalog URLs carry `vehicleId` (compatibility is
+   * an id-level relation), while SEO pages use the slug — both need to resolve
+   * to the same vehicle without a second endpoint.
+   */
+  async findBySlugOrId(slugOrId: string): Promise<VehicleDetail> {
     const row = await this.prisma.vehicle.findFirst({
-      where: { slug, isActive: true },
+      where: { isActive: true, OR: [{ slug: slugOrId }, { id: slugOrId }] },
       select: {
         ...vehicleSummarySelect,
         displacement: true,
@@ -137,9 +142,9 @@ export class VehiclesController {
     return this.vehicles.variants(brandSlug, decodeURIComponent(model));
   }
 
-  @Get(':slug')
-  findOne(@Param('slug') slug: string) {
-    return this.vehicles.findBySlug(slug);
+  @Get(':slugOrId')
+  findOne(@Param('slugOrId') slugOrId: string) {
+    return this.vehicles.findBySlugOrId(slugOrId);
   }
 
   @Get(':id/products')

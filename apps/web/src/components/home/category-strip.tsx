@@ -9,13 +9,13 @@ export function CategoryStrip({ categories }: { categories: CategorySummary[] })
 
   return (
     <section className="container-page mt-24">
-      <SectionHeading title="دسته بندی محصولات" moreHref="/store" />
+      <SectionHeading title="دسته بندی محصولات" moreHref="/products" />
 
       <div className="grid grid-cols-2 gap-5 md:grid-cols-4">
         {categories.slice(0, 4).map((category) => (
           <Link
             key={category.id}
-            href={`/store?category=${category.slug}`}
+            href={`/products?category=${category.slug}`}
             className="group relative flex h-44 items-start justify-between overflow-hidden rounded-card bg-surface p-5 transition-shadow hover:shadow-card"
           >
             <div className="relative z-10 flex h-full flex-col justify-between">

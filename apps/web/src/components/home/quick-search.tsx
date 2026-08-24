@@ -43,13 +43,14 @@ export function QuickSearch({ brands }: { brands: VehicleBrandOption[] }) {
   const submit = () => {
     // A technical code is the most specific signal, so it wins outright.
     if (code.trim()) {
-      router.push(`/search?q=${encodeURIComponent(code.trim())}`);
+      router.push(`/products?q=${encodeURIComponent(code.trim())}`);
       return;
     }
     const params = new URLSearchParams();
     if (brandSlug) params.set('vehicleBrand', brandSlug);
     if (model) params.set('vehicleModel', model);
-    router.push(`/store?${params.toString()}`);
+    const qs = params.toString();
+    router.push(qs ? `/products?${qs}` : '/products');
   };
 
   const field =

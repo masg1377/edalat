@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 
 const NAV = [
   { href: '/', label: 'خانه' },
-  { href: '/store', label: 'فروشگاه', hasMenu: true },
+  { href: '/products', label: 'فروشگاه', hasMenu: true },
   { href: '/wholesale', label: 'فروش عمده' },
   { href: '/vehicles', label: 'خودرو ها' },
   { href: '/contact', label: 'تماس با ما' },

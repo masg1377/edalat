@@ -8,7 +8,7 @@ const COLUMNS = [
   {
     title: 'دسترسی سریع',
     links: [
-      { href: '/store', label: 'محصولات' },
+      { href: '/products', label: 'محصولات' },
       { href: '/brands', label: 'برند ها' },
       { href: '/manufacturing', label: 'خدمات اختصاصی' },
       { href: '/manufacturing', label: 'سفارشی سازی' },

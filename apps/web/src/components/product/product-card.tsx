@@ -4,23 +4,39 @@ import type { ProductSummary } from '@edalat/shared';
 import { formatToman, toPersianDigits } from '@edalat/shared';
 
 import { ButtonLink } from '@/components/ui/button';
-import { StarIcon } from '@/components/ui/icons';
+import { CarIcon, StarIcon } from '@/components/ui/icons';
+import { productImage } from '@/lib/media';
 
-export function ProductCard({ product }: { product: ProductSummary }) {
+interface ProductCardProps {
+  product: ProductSummary;
+  /** Grid position — the first row is above the fold and loads eagerly. */
+  priority?: boolean;
+}
+
+export function ProductCard({ product, priority = false }: ProductCardProps) {
+  const image = productImage(product.mainImageUrl);
+
   return (
-    <article className="group flex flex-col overflow-hidden rounded-card bg-surface transition-shadow hover:shadow-card">
-      <Link href={`/products/${product.slug}`} className="relative block aspect-square bg-white">
-        {product.mainImageUrl ? (
-          <Image
-            src={product.mainImageUrl}
-            alt={product.name}
-            fill
-            sizes="(max-width: 768px) 50vw, 25vw"
-            className="object-contain p-6 transition-transform duration-300 group-hover:scale-105"
-          />
-        ) : (
-          <div className="grid size-full place-items-center text-sm text-ink-300">بدون تصویر</div>
-        )}
+    <article className="group flex h-full flex-col overflow-hidden rounded-card bg-surface transition-shadow focus-within:shadow-card hover:shadow-card">
+      {/* Fixed aspect ratio keeps the grid from shifting as images arrive. */}
+      <Link
+        href={`/products/${product.slug}`}
+        tabIndex={-1}
+        aria-hidden
+        className="relative block aspect-square bg-white"
+      >
+        <Image
+          src={image.src}
+          alt=""
+          fill
+          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+          priority={priority}
+          className={
+            image.isPlaceholder
+              ? 'object-contain p-10 opacity-60'
+              : 'object-contain p-6 transition-transform duration-300 group-hover:scale-105'
+          }
+        />
 
         {!product.inStock && (
           <span className="absolute top-3 end-3 rounded-full bg-ink-600 px-3 py-1 text-[11px] text-white">
@@ -31,43 +47,70 @@ export function ProductCard({ product }: { product: ProductSummary }) {
 
       <div className="flex flex-1 flex-col p-5">
         <div className="flex items-start justify-between gap-3">
-          <Link
-            href={`/products/${product.slug}`}
-            className="line-clamp-2 font-bold text-ink-800 transition-colors hover:text-brand-600"
-          >
-            {product.name}
-          </Link>
+          <h3 className="min-w-0">
+            <Link
+              href={`/products/${product.slug}`}
+              className="line-clamp-2 font-bold text-ink-800 transition-colors hover:text-brand-600"
+            >
+              {product.name}
+            </Link>
+          </h3>
 
-          <span className="flex shrink-0 items-center gap-1 text-sm text-ink-500">
-            <StarIcon className="size-4 text-brand-500" />
-            <span className="ltr-num">({toPersianDigits(product.ratingAverage.toFixed(1))})</span>
-          </span>
+          {product.ratingCount > 0 && (
+            <span className="flex shrink-0 items-center gap-1 text-sm text-ink-500">
+              <StarIcon className="size-4 text-brand-500" aria-hidden />
+              <span className="ltr-num">{toPersianDigits(product.ratingAverage.toFixed(1))}</span>
+              <span className="sr-only">
+                از ۵، بر اساس {toPersianDigits(product.ratingCount)} نظر
+              </span>
+            </span>
+          )}
         </div>
 
+        {/* Part numbers are latin — isolate them so RTL does not reverse them. */}
+        {product.technicalCode && (
+          <p className="mt-2 text-xs text-ink-500">
+            کد فنی: <span className="ltr-num font-medium text-ink-700">{product.technicalCode}</span>
+          </p>
+        )}
+
         <div className="mt-3 flex items-baseline justify-between gap-3">
-          <span className="text-sm text-ink-500">
+          <span className="truncate text-sm text-ink-500">
             برند: <b className="text-ink-800">{product.brand?.name ?? '—'}</b>
           </span>
-          <span className="font-bold text-ink-800">
+          <span className="shrink-0 font-bold text-ink-800">
             <span className="ltr-num">{formatToman(product.retailPrice)}</span>
             <span className="ms-1 text-xs font-normal text-ink-500">تومان</span>
           </span>
         </div>
 
-        {/* Rule 1 — wholesale is a different price, shown as its own line. */}
+        {/* Rule 1 — wholesale is a separate price. This is a display-only floor
+            from the backend; the billable price comes from the pricing quote. */}
         {product.lowestWholesalePrice !== null && (
           <p className="mt-2 text-xs text-ink-500">
-            عمده از{' '}
-            <b className="ltr-num text-ink-700">{formatToman(product.lowestWholesalePrice)}</b> تومان
+            عمده از <b className="ltr-num text-ink-700">{formatToman(product.lowestWholesalePrice)}</b>{' '}
+            تومان
             {product.minWholesaleQuantity !== null && (
               <> — حداقل {toPersianDigits(product.minWholesaleQuantity)} عدد</>
             )}
           </p>
         )}
 
-        <ButtonLink href={`/products/${product.slug}`} className="mt-5 w-full" size="md">
-          مشاهده محصول
-        </ButtonLink>
+        {product.compatibleVehicleCount > 0 && (
+          <p className="mt-2 flex items-center gap-1.5 text-xs text-ink-500">
+            <CarIcon className="size-4 shrink-0" aria-hidden />
+            مناسب {toPersianDigits(product.compatibleVehicleCount)} خودرو
+          </p>
+        )}
+
+        {/* `mt-auto` pins the CTA to the bottom so buttons line up across a row
+            whose titles wrap to different numbers of lines. */}
+        <div className="mt-auto pt-6">
+          <ButtonLink href={`/products/${product.slug}`} className="w-full" size="md">
+            مشاهده محصول
+            <span className="sr-only"> — {product.name}</span>
+          </ButtonLink>
+        </div>
       </div>
     </article>
   );

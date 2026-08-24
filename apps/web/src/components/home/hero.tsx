@@ -33,7 +33,7 @@ export function Hero() {
           </p>
 
           <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
-            <ButtonLink href="/store" size="lg" className="min-w-[220px]">
+            <ButtonLink href="/products" size="lg" className="min-w-[220px]">
               خرید تکی
             </ButtonLink>
             <ButtonLink href="/wholesale" variant="muted" size="lg" className="min-w-[220px]">

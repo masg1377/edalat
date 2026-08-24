@@ -30,6 +30,10 @@ export function SearchBar({
   const [open, setOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  // On the catalog page the input is pre-filled from the URL. Without this the
+  // debounce effect would fire on mount and pop the suggestion list open over
+  // the results the user came to read.
+  const userTyped = useRef(false);
 
   // PRD §64 — debounce so typing does not fire a request per keystroke.
   useEffect(() => {
@@ -45,7 +49,7 @@ export function SearchBar({
         .then((items) => {
           if (!controller.signal.aborted) {
             setSuggestions(items);
-            setOpen(items.length > 0);
+            setOpen(userTyped.current && items.length > 0);
           }
         })
         .catch(() => setSuggestions([]));
@@ -69,7 +73,7 @@ export function SearchBar({
     const q = query.trim();
     if (!q) return;
     setOpen(false);
-    router.push(`/search?q=${encodeURIComponent(q)}`);
+    router.push(`/products?q=${encodeURIComponent(q)}`);
   };
 
   return (
@@ -109,8 +113,11 @@ export function SearchBar({
 
         <input
           value={value}
-          onChange={(event) => setValue(event.target.value)}
-          onFocus={() => setOpen(suggestions.length > 0)}
+          onChange={(event) => {
+            userTyped.current = true;
+            setValue(event.target.value);
+          }}
+          onFocus={() => setOpen(userTyped.current && suggestions.length > 0)}
           placeholder={placeholder}
           aria-label="جستجوی محصول"
           className="h-full min-w-0 flex-1 bg-transparent text-right text-sm text-ink-800 outline-none placeholder:text-ink-400 md:text-base"
@@ -146,6 +153,7 @@ export function SearchBar({
         open={voiceOpen}
         onClose={() => setVoiceOpen(false)}
         onTranscript={(text) => {
+          userTyped.current = true;
           setValue(text);
           submit(text);
         }}

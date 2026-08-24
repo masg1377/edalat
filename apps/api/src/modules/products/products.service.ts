@@ -1,14 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type {
-  Paginated,
+  CatalogResponse,
   ProductDetail,
   ProductSummary,
   SharedCompatibility,
   VehicleSummary,
 } from '@edalat/shared';
-import { SearchSort, normalizePersian } from '@edalat/shared';
+import { CatalogSort, buildPagination } from '@edalat/shared';
 
+import { buildFacets } from '../../common/facets';
 import {
   mapProductDetail,
   mapProductSummary,
@@ -17,102 +18,174 @@ import {
   vehicleSummarySelect,
 } from '../../common/mappers';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ListProductsDto } from './dto/list-products.dto';
+import { SearchService } from '../search/search.service';
+import { CatalogQueryDto } from './dto/catalog-query.dto';
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly search: SearchService,
+  ) {}
 
-  private static orderBy(sort?: SearchSort): Prisma.ProductOrderByWithRelationInput[] {
+  /**
+   * Column ordering for the catalog.
+   *
+   * `RELEVANCE` is absent on purpose: relevance order is produced by
+   * SearchService's ranking, not by a database column, and is applied after the
+   * ranked id list comes back. Without a query, relevance falls back to the
+   * merchandising default below.
+   */
+  private static orderBy(sort?: CatalogSort): Prisma.ProductOrderByWithRelationInput[] {
     switch (sort) {
-      case SearchSort.NEWEST:
+      case CatalogSort.NEWEST:
         return [{ createdAt: 'desc' }];
-      case SearchSort.BEST_SELLING:
-        return [{ salesCount: 'desc' }];
-      case SearchSort.PRICE_ASC:
+      case CatalogSort.PRICE_ASC:
         return [{ retailPrice: 'asc' }];
-      case SearchSort.PRICE_DESC:
+      case CatalogSort.PRICE_DESC:
         return [{ retailPrice: 'desc' }];
-      case SearchSort.RATING:
+      case CatalogSort.BEST_SELLING:
+        return [{ salesCount: 'desc' }];
+      case CatalogSort.RATING:
         return [{ ratingAverage: 'desc' }, { ratingCount: 'desc' }];
       default:
         return [{ isFeatured: 'desc' }, { salesCount: 'desc' }, { createdAt: 'desc' }];
     }
   }
 
-  private buildWhere(dto: ListProductsDto): Prisma.ProductWhereInput {
-    const where: Prisma.ProductWhereInput = { isActive: true };
-    const and: Prisma.ProductWhereInput[] = [];
+  /**
+   * Translates catalog filters into a Prisma predicate.
+   *
+   * Note what is NOT here: any text matching. When `q` is present the catalog
+   * delegates to SearchService, so there is exactly one implementation of
+   * search ranking in the codebase.
+   */
+  private static buildWhere(dto: CatalogQueryDto): Prisma.ProductWhereInput {
+    const and: Prisma.ProductWhereInput[] = [{ isActive: true }];
 
     if (dto.categoryId) and.push({ categoryId: dto.categoryId });
-    if (dto.categorySlug) and.push({ category: { slug: dto.categorySlug } });
+    if (dto.category) and.push({ category: { slug: dto.category } });
     if (dto.brandId) and.push({ brandId: dto.brandId });
-    if (dto.brandSlug) and.push({ brand: { slug: dto.brandSlug } });
+    if (dto.brand) and.push({ brand: { slug: dto.brand } });
 
-    // Vehicle filters travel through the compatibility join, never free text.
-    if (dto.vehicleId) {
-      and.push({ compatibilities: { some: { vehicleId: dto.vehicleId } } });
-    }
-    if (dto.vehicleBrandId || dto.vehicleModel || dto.year) {
-      const vehicle: Prisma.VehicleWhereInput = {};
-      if (dto.vehicleBrandId) vehicle.brandId = dto.vehicleBrandId;
-      if (dto.vehicleModel) vehicle.model = { contains: dto.vehicleModel, mode: 'insensitive' };
-      if (dto.year) {
-        vehicle.AND = [
-          { OR: [{ yearFrom: null }, { yearFrom: { lte: dto.year } }] },
-          { OR: [{ yearTo: null }, { yearTo: { gte: dto.year } }] },
-        ];
-      }
-      and.push({ compatibilities: { some: { vehicle } } });
+    // Vehicle fit travels through the compatibility join, never free text.
+    if (dto.vehicleId) and.push({ compatibilities: { some: { vehicleId: dto.vehicleId } } });
+    if (dto.vehicleBrand || dto.vehicleModel) {
+      and.push({
+        compatibilities: {
+          some: {
+            vehicle: {
+              ...(dto.vehicleBrand ? { brand: { slug: dto.vehicleBrand } } : {}),
+              ...(dto.vehicleModel ? { model: dto.vehicleModel } : {}),
+            },
+          },
+        },
+      });
     }
 
     if (dto.minPrice !== undefined) and.push({ retailPrice: { gte: dto.minPrice } });
     if (dto.maxPrice !== undefined) and.push({ retailPrice: { lte: dto.maxPrice } });
     if (dto.inStock) and.push({ stockQuantity: { gt: 0 } });
 
-    // "Show me only what I can order wholesale" — products with at least one tier.
-    if (dto.purchaseType === 'WHOLESALE') {
-      and.push({ wholesaleRules: { some: {} } });
-    }
+    // "Show me what I can order wholesale" — products with at least one tier.
+    if (dto.purchaseType === 'WHOLESALE') and.push({ wholesaleRules: { some: {} } });
 
-    if (dto.q) {
-      const q = normalizePersian(dto.q);
-      and.push({
-        OR: [
-          { name: { contains: q, mode: 'insensitive' } },
-          { technicalCode: { contains: q, mode: 'insensitive' } },
-          { sku: { contains: q, mode: 'insensitive' } },
-          { oemCodes: { has: q.toUpperCase() } },
-          { aliases: { has: q } },
-        ],
-      });
-    }
-
-    if (and.length > 0) where.AND = and;
-    return where;
+    return { AND: and };
   }
 
-  async list(dto: ListProductsDto): Promise<Paginated<ProductSummary>> {
-    const where = this.buildWhere(dto);
-    const skip = (dto.page - 1) * dto.pageSize;
+  /**
+   * `GET /products` — the catalog.
+   *
+   * Two paths, one filter predicate:
+   *  - no `q`: a plain paginated query, ordered by the requested column.
+   *  - with `q`: SearchService ranks the filtered set and returns ordered ids;
+   *    those ids are then paginated here, preserving rank order for
+   *    `sort=relevance` and re-ordering by column for anything else.
+   */
+  async catalog(dto: CatalogQueryDto): Promise<CatalogResponse> {
+    const where = ProductsService.buildWhere(dto);
+    const hasQuery = Boolean(dto.q && dto.q.trim().length > 0);
 
-    const [rows, total] = await this.prisma.$transaction([
-      this.prisma.product.findMany({
-        where,
+    if (!hasQuery) {
+      const [rows, total, facets] = await Promise.all([
+        this.prisma.product.findMany({
+          where,
+          select: productSummarySelect,
+          orderBy: ProductsService.orderBy(dto.sort),
+          skip: (dto.page - 1) * dto.limit,
+          take: dto.limit,
+        }),
+        this.prisma.product.count({ where }),
+        buildFacets(this.prisma, where),
+      ]);
+
+      return {
+        items: rows.map(mapProductSummary),
+        pagination: buildPagination(dto.page, dto.limit, total),
+        normalizedQuery: null,
+        exactCodeMatchId: null,
+        facets,
+      };
+    }
+
+    const ranked = await this.search.rankProductIds(dto.q!, where);
+    const total = ranked.ids.length;
+
+    void this.search.logQuery({
+      rawQuery: dto.q!,
+      normalizedQuery: ranked.normalizedQuery,
+      resultCount: total,
+      source: 'TEXT',
+      vehicleId: dto.vehicleId,
+    });
+
+    if (total === 0) {
+      return {
+        items: [],
+        pagination: buildPagination(dto.page, dto.limit, 0),
+        normalizedQuery: ranked.normalizedQuery,
+        exactCodeMatchId: null,
+        facets: { brands: [], categories: [], priceRange: { min: 0, max: 0 } },
+      };
+    }
+
+    const relevanceOrder = !dto.sort || dto.sort === CatalogSort.RELEVANCE;
+    const skip = (dto.page - 1) * dto.limit;
+
+    let items: ProductSummary[];
+    if (relevanceOrder) {
+      // Slice the ranked ids, then hydrate only that page.
+      const pageIds = ranked.ids.slice(skip, skip + dto.limit);
+      const rows = await this.prisma.product.findMany({
+        where: { id: { in: pageIds } },
+        select: productSummarySelect,
+      });
+      const byId = new Map(rows.map((row) => [row.id, row]));
+      // `in` does not preserve order, so re-apply the ranking.
+      items = pageIds.flatMap((id) => {
+        const row = byId.get(id);
+        return row ? [mapProductSummary(row)] : [];
+      });
+    } else {
+      // Column sorts are done in the database over the ranked id set.
+      const rows = await this.prisma.product.findMany({
+        where: { id: { in: ranked.ids } },
         select: productSummarySelect,
         orderBy: ProductsService.orderBy(dto.sort),
         skip,
-        take: dto.pageSize,
-      }),
-      this.prisma.product.count({ where }),
-    ]);
+        take: dto.limit,
+      });
+      items = rows.map(mapProductSummary);
+    }
+
+    const facets = await buildFacets(this.prisma, { id: { in: ranked.ids } });
 
     return {
-      items: rows.map(mapProductSummary),
-      page: dto.page,
-      pageSize: dto.pageSize,
-      total,
-      totalPages: Math.max(1, Math.ceil(total / dto.pageSize)),
+      items,
+      pagination: buildPagination(dto.page, dto.limit, total),
+      normalizedQuery: ranked.normalizedQuery,
+      exactCodeMatchId: ranked.exactCodeMatchId,
+      facets,
     };
   }
 

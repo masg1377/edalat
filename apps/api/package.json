@@ -8,7 +8,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint \"src/**/*.ts\" --max-warnings 0",
+    "lint": "eslint src prisma --max-warnings 0",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
@@ -40,6 +40,7 @@
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@nestjs/cli": "^11.0.2",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.9",
@@ -47,18 +48,39 @@
     "@types/jest": "^29.5.14",
     "@types/node": "^22.13.1",
     "@types/passport-jwt": "^4.0.1",
+    "eslint": "^10.9.0",
+    "globals": "^17.11.0",
     "jest": "^29.7.0",
     "prisma": "^6.3.1",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.67.0"
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
-    "transform": { "^.+\\.(t|j)s$": "ts-jest" },
-    "testEnvironment": "node"
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": ".",
+    "testRegex": "(src|test)/.*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.ts$": [
+        "ts-jest",
+        {
+          "tsconfig": "tsconfig.json"
+        }
+      ]
+    },
+    "setupFiles": [
+      "<rootDir>/test/setup-env.ts"
+    ],
+    "testEnvironment": "node",
+    "testTimeout": 30000,
+    "transformIgnorePatterns": [
+      "/node_modules/"
+    ]
   }
 }

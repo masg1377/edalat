@@ -48,6 +48,9 @@ export const productSummarySelect = {
     select: { minQuantity: true, maxQuantity: true, unitPrice: true },
     orderBy: { minQuantity: 'asc' },
   },
+  // A count, not the rows: the catalog card shows "fits N vehicles" and must
+  // not pull every compatibility row for every product on the page.
+  _count: { select: { compatibilities: true } },
 } as const;
 
 export const vehicleSummarySelect = {
@@ -152,6 +155,7 @@ export function mapProductSummary(row: AnyRow): ProductSummary {
     lowestWholesalePrice: PricingService.lowestWholesalePrice(tiers),
     minWholesaleQuantity:
       tiers.length > 0 ? Math.max(row.minWholesaleQty ?? 1, tiers[0].minQuantity) : null,
+    compatibleVehicleCount: row._count?.compatibilities ?? 0,
     ratingAverage: row.ratingAverage ?? 0,
     ratingCount: row.ratingCount ?? 0,
     inStock: Math.max(0, (row.stockQuantity ?? 0) - (row.reservedQuantity ?? 0)) > 0,

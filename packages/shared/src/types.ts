@@ -13,12 +13,35 @@ import type {
 /* Generic API envelopes                                               */
 /* ------------------------------------------------------------------ */
 
-export interface Paginated<T> {
-  items: T[];
+export interface PaginationMeta {
   page: number;
-  pageSize: number;
+  /** Items per page. Capped server-side by `MAX_PAGE_SIZE`. */
+  limit: number;
   total: number;
   totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+export interface Paginated<T> {
+  items: T[];
+  pagination: PaginationMeta;
+}
+
+/** Hard ceiling on `limit`, enforced by the API, mirrored here for the client. */
+export const MAX_PAGE_SIZE = 100;
+export const DEFAULT_PAGE_SIZE = 24;
+
+export function buildPagination(page: number, limit: number, total: number): PaginationMeta {
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  return {
+    page,
+    limit,
+    total,
+    totalPages,
+    hasNext: page < totalPages,
+    hasPrevious: page > 1,
+  };
 }
 
 export interface ApiError {
@@ -67,6 +90,14 @@ export interface ReplacementInfo {
   notes: string | null;
 }
 
+/**
+ * The lightweight product shape used by every listing surface: catalog grid,
+ * search results, home rails, related products.
+ *
+ * Deliberately excludes description, galleries, spec sheets and the full
+ * compatibility list — those belong to `ProductDetail`. A catalog page of 24
+ * items must not drag along 24 spec sheets.
+ */
 export interface ProductSummary {
   id: string;
   slug: string;
@@ -76,9 +107,14 @@ export interface ProductSummary {
   mainImageUrl: string | null;
   technicalCode: string | null;
   retailPrice: number;
-  /** Lowest available wholesale unit price, if any tier is defined. */
+  /**
+   * Cheapest unit price across the product's wholesale tiers — for display
+   * only. The billable price always comes from `PricingService.quote()`.
+   */
   lowestWholesalePrice: number | null;
   minWholesaleQuantity: number | null;
+  /** How many vehicles this part fits (PRD §20) — a count, not the list. */
+  compatibleVehicleCount: number;
   ratingAverage: number;
   ratingCount: number;
   inStock: boolean;
@@ -154,33 +190,45 @@ export interface SharedCompatibility {
 /* Search                                                              */
 /* ------------------------------------------------------------------ */
 
-export interface SearchFilters {
+/**
+ * Sort keys. Lowercase because they travel in URLs and end up in shared links
+ * and search-engine indexes, where `price_asc` reads better than `PRICE_ASC`.
+ */
+export const CatalogSort = {
+  RELEVANCE: 'relevance',
+  NEWEST: 'newest',
+  PRICE_ASC: 'price_asc',
+  PRICE_DESC: 'price_desc',
+  BEST_SELLING: 'best_selling',
+  RATING: 'rating',
+} as const;
+export type CatalogSort = (typeof CatalogSort)[keyof typeof CatalogSort];
+
+/** Query shape of the catalog endpoint, mirrored by the page's URL params. */
+export interface CatalogQuery {
   q?: string;
+  /** Category slug — slugs, not ids, so URLs stay readable and SEO-friendly. */
+  category?: string;
+  brand?: string;
   vehicleId?: string;
-  brandId?: string;
-  categoryId?: string;
   minPrice?: number;
   maxPrice?: number;
-  purchaseType?: PurchaseType;
   inStock?: boolean;
-  sort?: SearchSort;
+  purchaseType?: PurchaseType;
+  sort?: CatalogSort;
   page?: number;
-  pageSize?: number;
+  limit?: number;
 }
-
-export const SearchSort = {
-  RELEVANCE: 'RELEVANCE',
-  NEWEST: 'NEWEST',
-  BEST_SELLING: 'BEST_SELLING',
-  PRICE_ASC: 'PRICE_ASC',
-  PRICE_DESC: 'PRICE_DESC',
-  RATING: 'RATING',
-} as const;
-export type SearchSort = (typeof SearchSort)[keyof typeof SearchSort];
 
 export interface SearchResultItem extends ProductSummary {
   matchKind: SearchMatchKind;
   score: number;
+}
+
+export interface SearchFacets {
+  brands: Array<{ id: string; name: string; slug: string; count: number }>;
+  categories: Array<{ id: string; name: string; slug: string; count: number }>;
+  priceRange: { min: number; max: number };
 }
 
 export interface SearchResponse extends Paginated<SearchResultItem> {
@@ -188,12 +236,15 @@ export interface SearchResponse extends Paginated<SearchResultItem> {
   normalizedQuery: string;
   /** Present when the query looked like a technical code and matched exactly. */
   exactCodeMatchId: string | null;
-  facets: {
-    brands: Array<{ id: string; name: string; count: number }>;
-    categories: Array<{ id: string; name: string; count: number }>;
-    vehicleBrands: Array<{ id: string; name: string; count: number }>;
-    priceRange: { min: number; max: number };
-  };
+  facets: SearchFacets;
+}
+
+/** Catalog response — a page of products plus the facets used to filter them. */
+export interface CatalogResponse extends Paginated<ProductSummary> {
+  /** Echo of the normalized query when `q` was supplied, else null. */
+  normalizedQuery: string | null;
+  exactCodeMatchId: string | null;
+  facets: SearchFacets;
 }
 
 export interface SearchSuggestion {

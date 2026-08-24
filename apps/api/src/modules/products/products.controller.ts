@@ -1,9 +1,9 @@
 import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
-import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { PurchaseType } from '@edalat/shared';
 
 import { PricingService } from '../pricing/pricing.service';
-import { ListProductsDto } from './dto/list-products.dto';
+import { CatalogQueryDto } from './dto/catalog-query.dto';
 import { ProductsService } from './products.service';
 
 @ApiTags('products')
@@ -15,9 +15,18 @@ export class ProductsController {
   ) {}
 
   @Get()
-  @ApiOkResponse({ description: 'Paginated, filterable product catalog.' })
-  list(@Query() dto: ListProductsDto) {
-    return this.products.list(dto);
+  @ApiOkResponse({
+    description:
+      'Paginated product catalog. All filtering, sorting and paging happen in the database; ' +
+      'when `q` is present, ranking comes from the shared SearchService.',
+  })
+  @ApiQuery({ name: 'q', required: false })
+  @ApiQuery({ name: 'category', required: false, description: 'Category slug' })
+  @ApiQuery({ name: 'brand', required: false, description: 'Brand slug' })
+  @ApiQuery({ name: 'vehicleId', required: false })
+  @ApiQuery({ name: 'sort', required: false, example: 'price_asc' })
+  catalog(@Query() dto: CatalogQueryDto) {
+    return this.products.catalog(dto);
   }
 
   @Get('featured')
