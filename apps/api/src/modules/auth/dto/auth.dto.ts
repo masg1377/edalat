@@ -1,4 +1,4 @@
-import { IsOptional, IsString, Length, Matches, MinLength } from 'class-validator';
+import { IsString, Length, Matches, MinLength } from 'class-validator';
 
 export class RequestOtpDto {
   @IsString()
@@ -27,26 +27,4 @@ export class PasswordLoginDto {
 export class RefreshDto {
   @IsString()
   refreshToken!: string;
-}
-
-export class UpdateProfileDto {
-  @IsOptional()
-  @IsString()
-  firstName?: string;
-
-  @IsOptional()
-  @IsString()
-  lastName?: string;
-
-  @IsOptional()
-  @IsString()
-  companyName?: string;
-
-  @IsOptional()
-  @IsString()
-  email?: string;
-
-  @IsOptional()
-  @IsString()
-  nationalId?: string;
 }

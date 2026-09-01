@@ -8,6 +8,7 @@ import type {
   ProductDetail,
   ProductSummary,
   ReplacementInfo,
+  UserProfile,
   VehicleBrandSummary,
   VehicleDetail,
   VehicleSummary,
@@ -197,6 +198,22 @@ export function mapProductDetail(row: AnyRow): ProductDetail {
     similarProducts: (row.relatedTo ?? [])
       .filter((r: AnyRow) => r.kind === 'SIMILAR')
       .map((r: AnyRow) => mapProductSummary(r.target)),
+  };
+}
+
+export function mapUser(row: AnyRow): UserProfile {
+  return {
+    id: row.id,
+    phone: row.phone,
+    phoneVerified: row.phoneVerified,
+    email: row.email ?? null,
+    emailVerified: row.emailVerified,
+    firstName: row.firstName ?? null,
+    lastName: row.lastName ?? null,
+    companyName: row.companyName ?? null,
+    nationalId: row.nationalId ?? null,
+    role: row.role,
+    createdAt: row.createdAt.toISOString(),
   };
 }
 

@@ -7,6 +7,7 @@ import type {
   SearchMatchKind,
   SuggestionKind,
   TransmissionType,
+  UserRole,
 } from './enums';
 
 /* ------------------------------------------------------------------ */
@@ -50,6 +51,27 @@ export interface ApiError {
   /** Machine-readable code, e.g. `PRODUCT_NOT_FOUND`. */
   code?: string;
   details?: Record<string, string[]>;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Users                                                               */
+/* ------------------------------------------------------------------ */
+
+/** PRD §78/§31 — /users domain and the Dashboard → Profile tab (phase 6). */
+export interface UserProfile {
+  id: string;
+  phone: string;
+  phoneVerified: boolean;
+  email: string | null;
+  emailVerified: boolean;
+  firstName: string | null;
+  lastName: string | null;
+  companyName: string | null;
+  /** National ID / company registration number, for wholesale invoices (PRD §42/§51). */
+  nationalId: string | null;
+  role: UserRole;
+  createdAt: string;
 }
 
 /* ------------------------------------------------------------------ */

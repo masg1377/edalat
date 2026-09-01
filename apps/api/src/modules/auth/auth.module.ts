@@ -1,29 +1,27 @@
-import { Body, Controller, Get, Module, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Module, Post } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 
-import { CurrentUser, JwtAuthGuard, type RequestUser } from '../../common/auth.decorators';
-import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from './auth.service';
-import {
-  PasswordLoginDto,
-  RefreshDto,
-  RequestOtpDto,
-  UpdateProfileDto,
-  VerifyOtpDto,
-} from './dto/auth.dto';
+import { PasswordLoginDto, RefreshDto, RequestOtpDto, VerifyOtpDto } from './dto/auth.dto';
 import { JwtStrategy } from './jwt.strategy';
 
+/**
+ * `GET/PATCH /auth/me` used to live here as an ad-hoc pair bolted directly
+ * onto this controller — no service layer, no `NotFoundException`, silently
+ * dropping `phoneVerified`/`emailVerified`/`nationalId` from the response,
+ * and never actually called by the frontend. PRD §78 lists `/users` as its
+ * own API domain; phase 6 replaced this pair with the real `UsersModule`
+ * (`GET/PATCH /users/me`) and removed the duplicate here. See
+ * `claude/وضعیت-پیاده‌سازی.md`, "شناسایی فاز ۶".
+ */
 @ApiTags('auth')
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
-  constructor(
-    private readonly auth: AuthService,
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly auth: AuthService) {}
 
   /** Tight rate limit: OTP endpoints are the classic SMS-bombing target. */
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
@@ -53,36 +51,6 @@ export class AuthController {
   async logout(@Body() dto: RefreshDto) {
     await this.auth.logout(dto.refreshToken);
     return { ok: true };
-  }
-
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @Get('me')
-  async me(@CurrentUser() user: RequestUser) {
-    return this.prisma.user.findUnique({
-      where: { id: user.id },
-      select: {
-        id: true,
-        phone: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        companyName: true,
-        role: true,
-        createdAt: true,
-      },
-    });
-  }
-
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  @Patch('me')
-  updateMe(@CurrentUser() user: RequestUser, @Body() dto: UpdateProfileDto) {
-    return this.prisma.user.update({
-      where: { id: user.id },
-      data: dto,
-      select: { id: true, firstName: true, lastName: true, companyName: true, email: true },
-    });
   }
 }
 
