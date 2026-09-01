@@ -291,6 +291,68 @@ export interface OrderSummary {
   trackingCode: string | null;
 }
 
+/** PRD §31/§34 — a saved shipping address, scoped to its owner (phase 5). */
+export interface Address {
+  id: string;
+  title: string;
+  recipientName: string;
+  phone: string;
+  province: string;
+  city: string;
+  postalCode: string | null;
+  line: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** One line of a placed order — denormalized so it reads correctly even if the product changes later. */
+export interface OrderItemDetail {
+  id: string;
+  productId: string;
+  productName: string;
+  productSku: string;
+  technicalCode: string | null;
+  purchaseType: PurchaseType;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+/**
+ * PRD §90.6 decision — MVP payment is Mock/Manual (no real gateway), so
+ * `gateway` is always `'MOCK'` and `status` is a plain string mirroring the
+ * `Payment.status` column (`INITIATED | SUCCEEDED | FAILED | REFUNDED`).
+ */
+export interface PaymentSummary {
+  id: string;
+  gateway: string;
+  amount: number;
+  status: string;
+  refId: string | null;
+  createdAt: string;
+}
+
+/** Full order — checkout response and the order confirmation / detail page (PRD §34/§35). */
+export interface OrderDetail {
+  id: string;
+  orderNumber: string;
+  status: OrderStatus;
+  address: Address | null;
+  shippingMethod: string | null;
+  trackingCode: string | null;
+  customerNote: string | null;
+  subtotal: number;
+  discountTotal: number;
+  shippingTotal: number;
+  taxTotal: number;
+  grandTotal: number;
+  items: OrderItemDetail[];
+  payments: PaymentSummary[];
+  paidAt: string | null;
+  createdAt: string;
+}
+
 /* ------------------------------------------------------------------ */
 /* Requests (image identification & private-label manufacturing)       */
 /* ------------------------------------------------------------------ */

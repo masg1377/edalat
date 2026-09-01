@@ -15,6 +15,7 @@ import { IsOptional, IsString } from 'class-validator';
 import { OrderStatus, type PurchaseType } from '@edalat/shared';
 
 import { CurrentUser, JwtAuthGuard, type RequestUser } from '../../common/auth.decorators';
+import { mapOrderDetail } from '../../common/mappers';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CartModule, CartService } from '../cart/cart.module';
 import { PricingService } from '../pricing/pricing.service';
@@ -55,6 +56,11 @@ export class OrdersService {
    * atomically — two customers racing for the last unit cannot both win.
    */
   async checkout(userId: string, dto: CheckoutDto) {
+    const orderId = await this.checkoutTransaction(userId, dto);
+    return this.findOne(userId, orderId);
+  }
+
+  private async checkoutTransaction(userId: string, dto: CheckoutDto): Promise<string> {
     const cart = await this.cart.read(userId);
     if (cart.items.length === 0) throw new BadRequestException('سبد خرید شما خالی است.');
 
@@ -125,8 +131,64 @@ export class OrdersService {
       });
 
       await tx.cartItem.deleteMany({ where: { cart: { userId } } });
-      return order;
+      return order.id;
     });
+  }
+
+  private static mockRefId(): string {
+    return `MOCK-${Date.now().toString(36).toUpperCase()}${Math.random()
+      .toString(36)
+      .slice(2, 5)
+      .toUpperCase()}`;
+  }
+
+  /**
+   * PRD §90.6 decision — MVP payment is Mock/Manual, no real gateway is wired.
+   * This simulates a gateway callback: it records a `Payment(gateway: 'MOCK',
+   * status: 'SUCCEEDED')`, moves the order to PAID, and — only now, not at
+   * checkout — finalizes inventory (checkout merely reserved stock; this is
+   * where it actually leaves the warehouse).
+   */
+  async confirmMockPayment(userId: string, orderId: string) {
+    const finalizedId = await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findFirst({
+        where: { id: orderId, userId },
+        include: { items: true },
+      });
+      if (!order) throw new NotFoundException('سفارش یافت نشد.');
+      if (order.status !== OrderStatus.AWAITING_PAYMENT) {
+        throw new BadRequestException('این سفارش در وضعیت قابل پرداخت نیست یا قبلاً پرداخت شده است.');
+      }
+
+      await tx.payment.create({
+        data: {
+          orderId: order.id,
+          gateway: 'MOCK',
+          amount: order.grandTotal,
+          status: 'SUCCEEDED',
+          refId: OrdersService.mockRefId(),
+        },
+      });
+
+      for (const item of order.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            stockQuantity: { decrement: item.quantity },
+            reservedQuantity: { decrement: item.quantity },
+          },
+        });
+      }
+
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: OrderStatus.PAID, paidAt: new Date() },
+      });
+
+      return order.id;
+    });
+
+    return this.findOne(userId, finalizedId);
   }
 
   async listForUser(userId: string) {
@@ -152,7 +214,7 @@ export class OrdersService {
       include: { items: true, payments: true, address: true },
     });
     if (!order) throw new NotFoundException('سفارش یافت نشد.');
-    return order;
+    return mapOrderDetail(order);
   }
 }
 
@@ -176,6 +238,15 @@ export class OrdersController {
   @Post('checkout')
   checkout(@CurrentUser() user: RequestUser, @Body() dto: CheckoutDto) {
     return this.orders.checkout(user.id, dto);
+  }
+
+  /**
+   * Mock/Manual payment confirmation (PRD §90.6 decision — no real gateway in
+   * the MVP). Simulates the callback a real gateway would send.
+   */
+  @Post(':id/confirm-mock-payment')
+  confirmMockPayment(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.orders.confirmMockPayment(user.id, id);
   }
 }
 
