@@ -35,7 +35,8 @@ export class VehiclesService {
         slug: true,
         logoUrl: true,
         country: true,
-        _count: { select: { vehicles: true } },
+        // Only count active vehicles — an inactive one should not inflate the brand's displayed count.
+        _count: { select: { vehicles: { where: { isActive: true } } } },
       },
     });
     return rows.map((row) => ({

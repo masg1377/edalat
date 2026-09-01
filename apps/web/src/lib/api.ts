@@ -128,8 +128,15 @@ export const api = {
     /** Resolves by slug (SEO pages) or id (catalog `vehicleId` filter). */
     bySlugOrId: (slugOrId: string) =>
       request<VehicleDetail>(`/vehicles/${slugOrId}`, { revalidate: 300 }),
+    /** Flat list — used where category grouping does not matter. */
     products: (vehicleId: string) =>
       request<ProductSummary[]>(`/vehicles/${vehicleId}/products`, { revalidate: 300 }),
+    /** PRD §24 — grouped by category, for "فیلتر روغن / فیلتر هوا / فیلتر کابین" sections. */
+    productsGrouped: (vehicleId: string) =>
+      request<Array<{ categoryId: string; categoryName: string; items: ProductSummary[] }>>(
+        `/vehicles/${vehicleId}/products${query({ grouped: true })}`,
+        { revalidate: 300 },
+      ),
   },
 
   search: {
