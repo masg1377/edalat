@@ -6,6 +6,7 @@ import { toPersianDigits } from '@edalat/shared';
 import { Footer } from '@/components/layout/footer';
 import { Header } from '@/components/layout/header';
 import { CompatibilityTable } from '@/components/product/compatibility-table';
+import { FavoriteButton } from '@/components/product/favorite-button';
 import { ProductCard } from '@/components/product/product-card';
 import { ProductGallery } from '@/components/product/product-gallery';
 import { ProductTabs } from '@/components/product/product-tabs';
@@ -122,11 +123,20 @@ export default async function ProductDetailPage({ params }: PageProps) {
           </div>
 
           <div className="order-1 lg:order-2">
-            {product.category && (
-              <span className="inline-block rounded-pill bg-surface px-4 py-1.5 text-xs text-ink-600">
-                {product.category.name}
-              </span>
-            )}
+            <div className="flex items-center justify-between gap-3">
+              {product.category ? (
+                <span className="inline-block rounded-pill bg-surface px-4 py-1.5 text-xs text-ink-600">
+                  {product.category.name}
+                </span>
+              ) : (
+                <span />
+              )}
+              <FavoriteButton
+                productId={product.id}
+                className="size-11 border border-ink-200 bg-white"
+                iconClassName="size-5"
+              />
+            </div>
 
             <h1 className="mt-4 text-xl font-black leading-relaxed text-ink-800 md:text-2xl">
               {product.name}

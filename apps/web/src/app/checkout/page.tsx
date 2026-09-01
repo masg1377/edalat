@@ -7,6 +7,12 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Address, Cart, OrderDetail } from '@edalat/shared';
 import { formatToman, toPersianDigits } from '@edalat/shared';
 
+import {
+  AddressFormFields,
+  EMPTY_ADDRESS_FORM,
+  isAddressFormValid,
+  type AddressFormState,
+} from '@/components/account/address-form';
 import { Footer } from '@/components/layout/footer';
 import { Header } from '@/components/layout/header';
 import { Button, ButtonLink } from '@/components/ui/button';
@@ -43,30 +49,6 @@ const STEPS: Array<{ id: Step; label: string }> = [
   { id: 'shipping', label: 'روش ارسال' },
   { id: 'review', label: 'بازبینی و پرداخت' },
 ];
-
-interface AddressFormState {
-  title: string;
-  recipientName: string;
-  phone: string;
-  province: string;
-  city: string;
-  postalCode: string;
-  line: string;
-}
-
-const EMPTY_ADDRESS_FORM: AddressFormState = {
-  title: '',
-  recipientName: '',
-  phone: '',
-  province: '',
-  city: '',
-  postalCode: '',
-  line: '',
-};
-
-const field =
-  'h-13 w-full rounded-pill border border-ink-200 bg-white px-5 py-3.5 text-sm text-ink-800 ' +
-  'outline-none transition-colors focus:border-brand-500';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -379,9 +361,7 @@ function AddressStep({
   formError: string | null;
   onNext: () => void;
 }) {
-  const canSubmitForm =
-    form.title.trim() && form.recipientName.trim() && form.phone.trim() && form.province.trim() &&
-    form.city.trim() && form.line.trim();
+  const canSubmitForm = isAddressFormValid(form);
 
   return (
     <div className="rounded-card bg-surface p-6 md:p-7">
@@ -438,65 +418,7 @@ function AddressStep({
         </button>
       ) : (
         <div className="mt-5 rounded-card border border-ink-200 bg-white p-5">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Labeled label="عنوان آدرس">
-              <input
-                value={form.title}
-                onChange={(e) => onFormChange({ ...form, title: e.target.value })}
-                placeholder="مثلاً خانه، محل کار"
-                className={field}
-              />
-            </Labeled>
-            <Labeled label="نام گیرنده">
-              <input
-                value={form.recipientName}
-                onChange={(e) => onFormChange({ ...form, recipientName: e.target.value })}
-                className={field}
-              />
-            </Labeled>
-            <Labeled label="شماره تماس گیرنده">
-              <input
-                type="tel"
-                inputMode="numeric"
-                value={form.phone}
-                onChange={(e) => onFormChange({ ...form, phone: e.target.value })}
-                placeholder="09xxxxxxxxx"
-                className={`${field} ltr-num text-start`}
-              />
-            </Labeled>
-            <Labeled label="کد پستی (اختیاری)">
-              <input
-                value={form.postalCode}
-                onChange={(e) => onFormChange({ ...form, postalCode: e.target.value })}
-                className={`${field} ltr-num text-start`}
-              />
-            </Labeled>
-            <Labeled label="استان">
-              <input
-                value={form.province}
-                onChange={(e) => onFormChange({ ...form, province: e.target.value })}
-                className={field}
-              />
-            </Labeled>
-            <Labeled label="شهر">
-              <input
-                value={form.city}
-                onChange={(e) => onFormChange({ ...form, city: e.target.value })}
-                className={field}
-              />
-            </Labeled>
-            <div className="sm:col-span-2">
-              <Labeled label="آدرس کامل">
-                <textarea
-                  rows={3}
-                  value={form.line}
-                  onChange={(e) => onFormChange({ ...form, line: e.target.value })}
-                  placeholder="خیابان، کوچه، پلاک، واحد"
-                  className="w-full rounded-card border border-ink-200 bg-white px-5 py-4 text-sm text-ink-800 outline-none transition-colors focus:border-brand-500"
-                />
-              </Labeled>
-            </div>
-          </div>
+          <AddressFormFields form={form} onChange={onFormChange} />
 
           {formError && (
             <p role="alert" className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-xs text-red-700">
@@ -775,11 +697,3 @@ function OrderSummaryAside({ cart, order }: { cart: Cart; order: OrderDetail | n
   );
 }
 
-function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-xs text-ink-600">{label}</span>
-      {children}
-    </label>
-  );
-}

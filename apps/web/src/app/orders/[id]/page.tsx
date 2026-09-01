@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
-import type { OrderDetail, OrderStatus } from '@edalat/shared';
+import type { OrderDetail } from '@edalat/shared';
 import { formatToman, toPersianDigits } from '@edalat/shared';
 
 import { Footer } from '@/components/layout/footer';
@@ -12,6 +12,7 @@ import { Header } from '@/components/layout/header';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { AuthRequiredError, authFetch, getSession } from '@/lib/auth';
 import { productImage } from '@/lib/media';
+import { ORDER_STATUS_LABELS, ORDER_STATUS_TONES } from '@/lib/status-labels';
 
 /**
  * PRD §35 — order status / confirmation page. Doubles as the immediate
@@ -20,30 +21,6 @@ import { productImage } from '@/lib/media';
  * order history in the dashboard — hence living at the dashboard-shaped
  * `/orders/{id}` route already, per the phase 5 task note.
  */
-
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  PENDING: 'در انتظار بررسی',
-  AWAITING_PAYMENT: 'در انتظار پرداخت',
-  PAID: 'پرداخت‌شده',
-  PROCESSING: 'در حال پردازش',
-  PACKED: 'بسته‌بندی‌شده',
-  SHIPPED: 'ارسال‌شده',
-  DELIVERED: 'تحویل داده‌شده',
-  CANCELLED: 'لغوشده',
-  RETURNED: 'مرجوع‌شده',
-};
-
-const STATUS_TONES: Record<OrderStatus, string> = {
-  PENDING: 'bg-sand text-ink-700',
-  AWAITING_PAYMENT: 'bg-amber-100 text-amber-800',
-  PAID: 'bg-green-100 text-green-800',
-  PROCESSING: 'bg-sand text-ink-700',
-  PACKED: 'bg-sand text-ink-700',
-  SHIPPED: 'bg-sand text-ink-700',
-  DELIVERED: 'bg-green-100 text-green-800',
-  CANCELLED: 'bg-red-100 text-red-700',
-  RETURNED: 'bg-red-100 text-red-700',
-};
 
 export default function OrderDetailPage() {
   const params = useParams<{ id: string }>();
@@ -153,8 +130,8 @@ export default function OrderDetailPage() {
                 </span>
               </p>
             </div>
-            <span className={`rounded-pill px-4 py-1.5 text-xs font-bold ${STATUS_TONES[order.status]}`}>
-              {STATUS_LABELS[order.status]}
+            <span className={`rounded-pill px-4 py-1.5 text-xs font-bold ${ORDER_STATUS_TONES[order.status]}`}>
+              {ORDER_STATUS_LABELS[order.status]}
             </span>
           </div>
 

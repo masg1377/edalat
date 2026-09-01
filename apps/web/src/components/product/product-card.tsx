@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { ProductSummary } from '@edalat/shared';
 import { formatToman, toPersianDigits } from '@edalat/shared';
 
+import { FavoriteButton } from '@/components/product/favorite-button';
 import { ButtonLink } from '@/components/ui/button';
 import { CarIcon, StarIcon } from '@/components/ui/icons';
 import { productImage } from '@/lib/media';
@@ -19,31 +20,38 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-card bg-surface transition-shadow focus-within:shadow-card hover:shadow-card">
       {/* Fixed aspect ratio keeps the grid from shifting as images arrive. */}
-      <Link
-        href={`/products/${product.slug}`}
-        tabIndex={-1}
-        aria-hidden
-        className="relative block aspect-square bg-white"
-      >
-        <Image
-          src={image.src}
-          alt=""
-          fill
-          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-          priority={priority}
-          className={
-            image.isPlaceholder
-              ? 'object-contain p-10 opacity-60'
-              : 'object-contain p-6 transition-transform duration-300 group-hover:scale-105'
-          }
-        />
+      <div className="relative aspect-square bg-white">
+        <Link
+          href={`/products/${product.slug}`}
+          tabIndex={-1}
+          aria-hidden
+          className="absolute inset-0 block"
+        >
+          <Image
+            src={image.src}
+            alt=""
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            priority={priority}
+            className={
+              image.isPlaceholder
+                ? 'object-contain p-10 opacity-60'
+                : 'object-contain p-6 transition-transform duration-300 group-hover:scale-105'
+            }
+          />
 
-        {!product.inStock && (
-          <span className="absolute top-3 end-3 rounded-full bg-ink-600 px-3 py-1 text-[11px] text-white">
-            ناموجود
-          </span>
-        )}
-      </Link>
+          {!product.inStock && (
+            <span className="absolute top-3 end-3 rounded-full bg-ink-600 px-3 py-1 text-[11px] text-white">
+              ناموجود
+            </span>
+          )}
+        </Link>
+
+        {/* Sibling of the (decorative, aria-hidden) image link, not nested in
+            it — a real interactive control inside an aria-hidden link would
+            be unreachable for assistive tech. */}
+        <FavoriteButton productId={product.id} className="absolute start-3 top-3 size-9" />
+      </div>
 
       <div className="flex flex-1 flex-col p-5">
         <div className="flex items-start justify-between gap-3">
