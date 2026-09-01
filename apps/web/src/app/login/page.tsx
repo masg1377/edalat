@@ -73,7 +73,16 @@ function LoginForm() {
     'text-ink-800 outline-none transition-colors focus:border-brand-500';
 
   return (
-    <main className="grid min-h-screen place-items-center bg-surface-soft px-4 py-12">
+    // Figma login frame (201:4271) is a full-bleed photo behind the centered
+    // card — same placeholder-image pattern as Hero until the asset is exported.
+    <main className="relative isolate grid min-h-screen place-items-center overflow-hidden bg-ink-700 px-4 py-12">
+      <div
+        aria-hidden
+        className="absolute inset-0 -z-10 bg-ink-700 bg-cover bg-center"
+        style={{ backgroundImage: 'var(--login-image, none)' }}
+      />
+      <div aria-hidden className="absolute inset-0 -z-10 bg-ink-900/60" />
+
       <div className="w-full max-w-md rounded-card bg-white p-8 shadow-card md:p-10">
         <div className="text-center">
           <Logo size="md" className="mx-auto" />

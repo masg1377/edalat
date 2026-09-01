@@ -91,7 +91,7 @@ export default async function ProductDetailPage({ params }: PageProps) {
             </li>
             <li aria-hidden>›</li>
             <li>
-              <Link href="/products" className="hover:text-ink-800">فروشگاه</Link>
+              <Link href="/products" className="hover:text-ink-800">محصولات</Link>
             </li>
             {product.category && (
               <>
@@ -165,11 +165,14 @@ export default async function ProductDetailPage({ params }: PageProps) {
               <PurchaseBox product={product} />
             </div>
 
+            {/* Figma order (right-to-left reading): ارسال سریع, ضمانت اصالت, ۷ روز
+               ضمانت بازگشت, پشتیبانی تخصصی — list order matches so the RTL flex
+               row renders the same reading order as the design. */}
             <ul className="mt-6 flex flex-wrap justify-between gap-4 text-xs text-ink-500">
-              <li>پشتیبانی تخصصی</li>
-              <li>۷ روز ضمانت بازگشت کالا</li>
-              <li>ضمانت اصالت کالا</li>
               <li>ارسال سریع</li>
+              <li>ضمانت اصالت کالا</li>
+              <li>۷ روز ضمانت بازگشت کالا</li>
+              <li>پشتیبانی تخصصی</li>
             </ul>
           </div>
         </div>

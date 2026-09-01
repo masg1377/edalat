@@ -148,7 +148,7 @@ export default function ProductRequestPage() {
                 href="/products"
                 className="inline-flex h-14 items-center justify-center rounded-pill bg-sand px-7 font-bold text-ink-800"
               >
-                بازگشت به فروشگاه
+                بازگشت به محصولات
               </Link>
             </div>
           </div>

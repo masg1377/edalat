@@ -134,13 +134,13 @@ export default async function ProductsPage({ searchParams }: PageProps) {
             </li>
             <li aria-hidden>/</li>
             <li className="font-bold text-ink-800" aria-current="page">
-              فروشگاه
+              محصولات
             </li>
           </ol>
         </nav>
 
         <h1 className="text-2xl font-black text-ink-800 md:text-3xl">
-          {params.q ? <>نتایج جستجو برای «{params.q}»</> : 'فروشگاه محصولات'}
+          {params.q ? <>نتایج جستجو برای «{params.q}»</> : 'محصولات'}
         </h1>
 
         <SearchBar className="mt-6 max-w-3xl" defaultValue={params.q} />
