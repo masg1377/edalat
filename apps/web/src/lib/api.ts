@@ -97,11 +97,22 @@ export const api = {
       request<Array<CategorySummary & { children: CategorySummary[] }>>('/categories/tree', {
         revalidate: 600,
       }),
+    /** PRD §63 — the canonical `/categories/{slug}` landing page: the category
+     * itself (with its live product count) plus its direct children. */
+    bySlug: (slug: string) =>
+      request<CategorySummary & { description: string | null; children: CategorySummary[] }>(
+        `/categories/${slug}`,
+        { revalidate: 600 },
+      ),
   },
 
   brands: {
     list: (limit?: number) =>
       request<Array<BrandSummary & { productCount: number }>>(`/brands${query({ limit })}`, {
+        revalidate: 600,
+      }),
+    bySlug: (slug: string) =>
+      request<BrandSummary & { description: string | null }>(`/brands/${slug}`, {
         revalidate: 600,
       }),
   },

@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 const NAV = [
   { href: '/', label: 'خانه' },
   { href: '/products', label: 'محصولات', hasMenu: true },
+  { href: '/brands', label: 'برند ها' },
   { href: '/wholesale', label: 'فروش عمده' },
   { href: '/vehicles', label: 'خودرو ها' },
   { href: '/manufacturing', label: 'تولید با برند شما' },
