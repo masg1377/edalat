@@ -8,8 +8,9 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm-run-all --parallel dev:api dev:web",
+    "dev": "npm-run-all --parallel dev:api dev:web dev:admin",
     "dev:web": "npm run dev --workspace @edalat/web",
+    "dev:admin": "npm run dev --workspace @edalat/admin",
     "dev:api": "npm run start:dev --workspace @edalat/api",
     "build": "npm run build --workspace @edalat/shared && npm run build --workspace @edalat/api && npm run build --workspace @edalat/web",
     "lint": "npm run lint --workspaces --if-present",
