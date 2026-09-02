@@ -7,7 +7,7 @@ import type {
   SharedCompatibility,
   VehicleSummary,
 } from '@edalat/shared';
-import { CatalogSort, buildPagination } from '@edalat/shared';
+import { CatalogSort, buildPagination, slugify } from '@edalat/shared';
 
 import { buildFacets } from '../../common/facets';
 import {
@@ -20,6 +20,36 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { SearchService } from '../search/search.service';
 import { CatalogQueryDto } from './dto/catalog-query.dto';
+import type {
+  CreateCompatibilityDto,
+  CreateProductDto,
+  UpdateCompatibilityDto,
+  UpdateProductDto,
+} from './dto/product-write.dto';
+
+/** Same shape `findBySlug` selects, minus the `isActive` filter and the
+ * view-count side effect — the admin write endpoints need the full detail
+ * back regardless of active state, and must never count as a customer view. */
+const productDetailSelect = {
+  ...productSummarySelect,
+  description: true,
+  sku: true,
+  oemCodes: true,
+  images: true,
+  specifications: true,
+  replacementKm: true,
+  replacementKmMax: true,
+  replacementMonths: true,
+  replacementNotes: true,
+  compatibilities: {
+    select: { vehicle: { select: vehicleSummarySelect } },
+    orderBy: { vehicle: { model: 'asc' } as const },
+  },
+  relatedTo: {
+    select: { kind: true, target: { select: productSummarySelect } },
+    orderBy: { sortOrder: 'asc' as const },
+  },
+} satisfies Prisma.ProductSelect;
 
 @Injectable()
 export class ProductsService {
@@ -275,5 +305,289 @@ export class ProductsService {
       take: limit,
     });
     return rows.map(mapProductSummary);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* PRD §53 — admin writes. Reads above stay untouched; everything below */
+  /* is reachable only through RolesGuard-protected controller methods.  */
+  /* ------------------------------------------------------------------ */
+
+  private async uniqueSlug(base: string, excludeId?: string): Promise<string> {
+    const root = slugify(base) || 'product';
+    let candidate = root;
+    let suffix = 2;
+    for (;;) {
+      const existing = await this.prisma.product.findUnique({ where: { slug: candidate } });
+      if (!existing || existing.id === excludeId) return candidate;
+      candidate = `${root}-${suffix++}`;
+    }
+  }
+
+  /**
+   * Full editable row for the admin Product add/edit page — every field the
+   * write DTOs accept, plus wholesale-tier and compatibility row ids (the
+   * public `findBySlug`/`ProductDetail` shape intentionally drops these:
+   * ids for PATCH targets, inactive products, `isFeatured`/`isManufactured`,
+   * `metaTitle`/`metaDescription`). Guarded by RolesGuard in the controller
+   * — unlike every other read on this service, this one is admin-only.
+   */
+  async findForEdit(id: string) {
+    const row = await this.prisma.product.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        description: true,
+        shortDescription: true,
+        sku: true,
+        technicalCode: true,
+        oemCodes: true,
+        aliases: true,
+        keywords: true,
+        brandId: true,
+        categoryId: true,
+        mainImageUrl: true,
+        images: true,
+        specifications: true,
+        retailPrice: true,
+        compareAtPrice: true,
+        minWholesaleQty: true,
+        stockQuantity: true,
+        replacementKm: true,
+        replacementKmMax: true,
+        replacementMonths: true,
+        replacementNotes: true,
+        isActive: true,
+        isManufactured: true,
+        isFeatured: true,
+        metaTitle: true,
+        metaDescription: true,
+        wholesaleRules: {
+          select: { id: true, minQuantity: true, maxQuantity: true, unitPrice: true },
+          orderBy: { minQuantity: 'asc' },
+        },
+        compatibilities: {
+          select: {
+            id: true,
+            vehicleId: true,
+            isExactFit: true,
+            notes: true,
+            replacementKm: true,
+            replacementKmMax: true,
+            replacementMonths: true,
+            vehicle: { select: vehicleSummarySelect },
+          },
+          orderBy: { vehicle: { model: 'asc' } },
+        },
+      },
+    });
+    if (!row) throw new NotFoundException('محصول یافت نشد.');
+
+    return {
+      ...row,
+      retailPrice: Number(row.retailPrice),
+      compareAtPrice: row.compareAtPrice !== null ? Number(row.compareAtPrice) : null,
+      wholesaleRules: row.wholesaleRules.map((t) => ({
+        id: t.id,
+        minQuantity: t.minQuantity,
+        maxQuantity: t.maxQuantity,
+        unitPrice: Number(t.unitPrice),
+      })),
+      compatibilities: row.compatibilities.map((c) => ({
+        id: c.id,
+        vehicleId: c.vehicleId,
+        isExactFit: c.isExactFit,
+        notes: c.notes,
+        replacementKm: c.replacementKm,
+        replacementKmMax: c.replacementKmMax,
+        replacementMonths: c.replacementMonths,
+        vehicle: mapVehicleSummary(c.vehicle),
+      })),
+    };
+  }
+
+  async create(dto: CreateProductDto): Promise<ProductDetail> {
+    const slug = dto.slug?.trim() ? await this.uniqueSlug(dto.slug) : await this.uniqueSlug(dto.name);
+
+    const row = await this.prisma.product.create({
+      data: {
+        name: dto.name,
+        slug,
+        sku: dto.sku,
+        description: dto.description,
+        shortDescription: dto.shortDescription,
+        technicalCode: dto.technicalCode,
+        oemCodes: dto.oemCodes ?? [],
+        aliases: dto.aliases ?? [],
+        keywords: dto.keywords ?? [],
+        brandId: dto.brandId,
+        categoryId: dto.categoryId,
+        mainImageUrl: dto.mainImageUrl,
+        images: dto.images ?? [],
+        specifications: dto.specifications ?? {},
+        retailPrice: dto.retailPrice,
+        compareAtPrice: dto.compareAtPrice,
+        minWholesaleQty: dto.minWholesaleQty ?? 1,
+        stockQuantity: dto.stockQuantity ?? 0,
+        replacementKm: dto.replacementKm,
+        replacementKmMax: dto.replacementKmMax,
+        replacementMonths: dto.replacementMonths,
+        replacementNotes: dto.replacementNotes,
+        isActive: dto.isActive ?? true,
+        isManufactured: dto.isManufactured ?? false,
+        isFeatured: dto.isFeatured ?? false,
+        metaTitle: dto.metaTitle,
+        metaDescription: dto.metaDescription,
+        ...(dto.wholesaleTiers
+          ? {
+              wholesaleRules: {
+                create: dto.wholesaleTiers.map((t) => ({
+                  minQuantity: t.minQuantity,
+                  maxQuantity: t.maxQuantity ?? null,
+                  unitPrice: t.unitPrice,
+                })),
+              },
+            }
+          : {}),
+      },
+      select: productDetailSelect,
+    });
+    return mapProductDetail(row);
+  }
+
+  async update(id: string, dto: UpdateProductDto): Promise<ProductDetail> {
+    const existing = await this.prisma.product.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('محصول یافت نشد.');
+
+    const slug = dto.slug?.trim() ? await this.uniqueSlug(dto.slug, id) : undefined;
+
+    const row = await this.prisma.product.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(slug !== undefined ? { slug } : {}),
+        ...(dto.sku !== undefined ? { sku: dto.sku } : {}),
+        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.shortDescription !== undefined ? { shortDescription: dto.shortDescription } : {}),
+        ...(dto.technicalCode !== undefined ? { technicalCode: dto.technicalCode } : {}),
+        ...(dto.oemCodes !== undefined ? { oemCodes: dto.oemCodes } : {}),
+        ...(dto.aliases !== undefined ? { aliases: dto.aliases } : {}),
+        ...(dto.keywords !== undefined ? { keywords: dto.keywords } : {}),
+        ...(dto.brandId !== undefined ? { brandId: dto.brandId } : {}),
+        ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
+        ...(dto.mainImageUrl !== undefined ? { mainImageUrl: dto.mainImageUrl } : {}),
+        ...(dto.images !== undefined ? { images: dto.images } : {}),
+        ...(dto.specifications !== undefined ? { specifications: dto.specifications } : {}),
+        ...(dto.retailPrice !== undefined ? { retailPrice: dto.retailPrice } : {}),
+        ...(dto.compareAtPrice !== undefined ? { compareAtPrice: dto.compareAtPrice } : {}),
+        ...(dto.minWholesaleQty !== undefined ? { minWholesaleQty: dto.minWholesaleQty } : {}),
+        ...(dto.stockQuantity !== undefined ? { stockQuantity: dto.stockQuantity } : {}),
+        ...(dto.replacementKm !== undefined ? { replacementKm: dto.replacementKm } : {}),
+        ...(dto.replacementKmMax !== undefined ? { replacementKmMax: dto.replacementKmMax } : {}),
+        ...(dto.replacementMonths !== undefined ? { replacementMonths: dto.replacementMonths } : {}),
+        ...(dto.replacementNotes !== undefined ? { replacementNotes: dto.replacementNotes } : {}),
+        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+        ...(dto.isManufactured !== undefined ? { isManufactured: dto.isManufactured } : {}),
+        ...(dto.isFeatured !== undefined ? { isFeatured: dto.isFeatured } : {}),
+        ...(dto.metaTitle !== undefined ? { metaTitle: dto.metaTitle } : {}),
+        ...(dto.metaDescription !== undefined ? { metaDescription: dto.metaDescription } : {}),
+        // Rule 2 — a full tier list replaces the previous one; there is no
+        // per-tier PATCH, the same way the admin form edits the whole table.
+        ...(dto.wholesaleTiers !== undefined
+          ? {
+              wholesaleRules: {
+                deleteMany: {},
+                create: dto.wholesaleTiers.map((t) => ({
+                  minQuantity: t.minQuantity,
+                  maxQuantity: t.maxQuantity ?? null,
+                  unitPrice: t.unitPrice,
+                })),
+              },
+            }
+          : {}),
+      },
+      select: productDetailSelect,
+    });
+    return mapProductDetail(row);
+  }
+
+  /**
+   * "Delete" deactivates rather than removing the row. `OrderItem.productId`
+   * has no cascade — a hard delete would throw the moment the product ever
+   * appeared in a real order — and hiding it from `catalog()` (which already
+   * filters `isActive: true`) is exactly what "remove from the storefront"
+   * needs. Documented in claude/وضعیت-پیاده‌سازی.md, فاز ۹الف.
+   */
+  async deactivate(id: string): Promise<void> {
+    try {
+      await this.prisma.product.update({ where: { id }, data: { isActive: false } });
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2025') {
+        throw new NotFoundException('محصول یافت نشد.');
+      }
+      throw error;
+    }
+  }
+
+  /** PRD §46/Rule 3 — a real relation row, not free text. */
+  async addCompatibility(productId: string, dto: CreateCompatibilityDto) {
+    const [product, vehicle] = await Promise.all([
+      this.prisma.product.findUnique({ where: { id: productId } }),
+      this.prisma.vehicle.findUnique({ where: { id: dto.vehicleId } }),
+    ]);
+    if (!product) throw new NotFoundException('محصول یافت نشد.');
+    if (!vehicle) throw new NotFoundException('خودرو یافت نشد.');
+
+    try {
+      return await this.prisma.productVehicleCompatibility.create({
+        data: {
+          productId,
+          vehicleId: dto.vehicleId,
+          isExactFit: dto.isExactFit ?? true,
+          notes: dto.notes,
+          replacementKm: dto.replacementKm,
+          replacementKmMax: dto.replacementKmMax,
+          replacementMonths: dto.replacementMonths,
+        },
+      });
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2002') {
+        throw new NotFoundException('این محصول از قبل برای این خودرو ثبت شده است.');
+      }
+      throw error;
+    }
+  }
+
+  async updateCompatibility(id: string, dto: UpdateCompatibilityDto) {
+    try {
+      return await this.prisma.productVehicleCompatibility.update({
+        where: { id },
+        data: {
+          ...(dto.isExactFit !== undefined ? { isExactFit: dto.isExactFit } : {}),
+          ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+          ...(dto.replacementKm !== undefined ? { replacementKm: dto.replacementKm } : {}),
+          ...(dto.replacementKmMax !== undefined ? { replacementKmMax: dto.replacementKmMax } : {}),
+          ...(dto.replacementMonths !== undefined ? { replacementMonths: dto.replacementMonths } : {}),
+        },
+      });
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2025') {
+        throw new NotFoundException('رکورد سازگاری یافت نشد.');
+      }
+      throw error;
+    }
+  }
+
+  /** Hard delete — a pure join row, nothing downstream references it. */
+  async removeCompatibility(id: string): Promise<void> {
+    try {
+      await this.prisma.productVehicleCompatibility.delete({ where: { id } });
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2025') {
+        throw new NotFoundException('رکورد سازگاری یافت نشد.');
+      }
+      throw error;
+    }
   }
 }

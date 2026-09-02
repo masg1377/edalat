@@ -1,9 +1,27 @@
-import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
-import { ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { PurchaseType } from '@edalat/shared';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { PurchaseType, UserRole } from '@edalat/shared';
 
+import { JwtAuthGuard, Roles, RolesGuard } from '../../common/auth.decorators';
 import { PricingService } from '../pricing/pricing.service';
 import { CatalogQueryDto } from './dto/catalog-query.dto';
+import {
+  CreateCompatibilityDto,
+  CreateProductDto,
+  UpdateCompatibilityDto,
+  UpdateProductDto,
+} from './dto/product-write.dto';
 import { ProductsService } from './products.service';
 
 @ApiTags('products')
@@ -68,5 +86,73 @@ export class ProductsController {
     @Query('purchaseType') purchaseType: PurchaseType = PurchaseType.RETAIL,
   ) {
     return this.pricing.quote(id, purchaseType, quantity);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* PRD §53 — admin writes.                                             */
+  /* ------------------------------------------------------------------ */
+
+  /** Admin edit-fetch — see `ProductsService.findForEdit` doc comment. */
+  @Get('admin/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.CONTENT_MANAGER)
+  findForEdit(@Param('id') id: string) {
+    return this.products.findForEdit(id);
+  }
+
+  @Post()
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.CONTENT_MANAGER)
+  create(@Body() dto: CreateProductDto) {
+    return this.products.create(dto);
+  }
+
+  @Patch(':id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.CONTENT_MANAGER)
+  update(@Param('id') id: string, @Body() dto: UpdateProductDto) {
+    return this.products.update(id, dto);
+  }
+
+  /** Soft delete — see `ProductsService.deactivate` doc comment. */
+  @Delete(':id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+  async remove(@Param('id') id: string) {
+    await this.products.deactivate(id);
+    return { ok: true };
+  }
+
+  /** PRD §46/Rule 3 — ProductVehicleCompatibility writes. */
+  @Post(':id/compatibility')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.CONTENT_MANAGER)
+  addCompatibility(@Param('id') id: string, @Body() dto: CreateCompatibilityDto) {
+    return this.products.addCompatibility(id, dto);
+  }
+
+  @Patch('compatibility/:compatibilityId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.CONTENT_MANAGER)
+  updateCompatibility(
+    @Param('compatibilityId') compatibilityId: string,
+    @Body() dto: UpdateCompatibilityDto,
+  ) {
+    return this.products.updateCompatibility(compatibilityId, dto);
+  }
+
+  @Delete('compatibility/:compatibilityId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.CONTENT_MANAGER)
+  async removeCompatibility(@Param('compatibilityId') compatibilityId: string) {
+    await this.products.removeCompatibility(compatibilityId);
+    return { ok: true };
   }
 }
