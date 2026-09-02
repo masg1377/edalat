@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
 
@@ -282,8 +283,34 @@ const products: SeedProduct[] = [
   },
 ];
 
+/**
+ * PRD §30 — staff sign-in uses phone + password (`POST /auth/login`), not
+ * the customer OTP flow. This is the only account that can reach
+ * `apps/admin` locally; production must never ship this password.
+ * See claude/وضعیت-پیاده‌سازی.md, فاز ۹الف for the credentials.
+ */
+const DEV_ADMIN = {
+  phone: '09120000000',
+  password: 'Admin@12345',
+};
+
 async function main() {
   console.log('Seeding…');
+
+  const adminPasswordHash = await argon2.hash(DEV_ADMIN.password);
+  await prisma.user.upsert({
+    where: { phone: DEV_ADMIN.phone },
+    update: { passwordHash: adminPasswordHash, role: 'ADMIN', isActive: true },
+    create: {
+      phone: DEV_ADMIN.phone,
+      phoneVerified: true,
+      passwordHash: adminPasswordHash,
+      role: 'ADMIN',
+      firstName: 'ادمین',
+      lastName: 'توسعه',
+    },
+  });
+  console.log(`Dev admin ready — phone: ${DEV_ADMIN.phone}, password: ${DEV_ADMIN.password}`);
 
   const brandIds = new Map<string, string>();
   for (const b of partBrands) {
