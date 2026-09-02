@@ -12,6 +12,7 @@ const NAV = [
   { href: '/products', label: 'محصولات', hasMenu: true },
   { href: '/wholesale', label: 'فروش عمده' },
   { href: '/vehicles', label: 'خودرو ها' },
+  { href: '/manufacturing', label: 'تولید با برند شما' },
   { href: '/contact', label: 'تماس با ما' },
   { href: '/about', label: 'درباره ما' },
 ];

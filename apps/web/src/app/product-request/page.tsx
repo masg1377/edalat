@@ -1,25 +1,16 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
 import { Footer } from '@/components/layout/footer';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
-import { CameraIcon } from '@/components/ui/icons';
+import { FilePicker, IMAGE_TYPES, type PickedFile } from '@/components/upload/file-picker';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 
-/** PRD §66 — only these types are accepted, and never an executable. */
-const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
-const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_FILES = 5;
-
-interface Preview {
-  file: File;
-  url: string;
-}
 
 /**
  * PRD §11 / §72 — "I don't know what this part is, here's a photo".
@@ -30,7 +21,7 @@ interface Preview {
  * flow exists to capture (PRD §88).
  */
 export default function ProductRequestPage() {
-  const [previews, setPreviews] = useState<Preview[]>([]);
+  const [images, setImages] = useState<PickedFile[]>([]);
   const [form, setForm] = useState({
     vehicleLabel: '',
     possibleName: '',
@@ -43,42 +34,9 @@ export default function ProductRequestPage() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [reference, setReference] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  // Object URLs leak until revoked; drop them when the previews change.
-  useEffect(() => {
-    return () => previews.forEach((p) => URL.revokeObjectURL(p.url));
-  }, [previews]);
-
-  const addFiles = (files: FileList | null) => {
-    if (!files) return;
-    setError(null);
-
-    const next: Preview[] = [];
-    for (const file of Array.from(files)) {
-      if (!ACCEPTED.includes(file.type)) {
-        setError('فقط تصویر با فرمت JPG، PNG یا WebP پذیرفته می‌شود.');
-        continue;
-      }
-      if (file.size > MAX_BYTES) {
-        setError('حجم هر تصویر باید کمتر از ۵ مگابایت باشد.');
-        continue;
-      }
-      next.push({ file, url: URL.createObjectURL(file) });
-    }
-
-    setPreviews((current) => [...current, ...next].slice(0, MAX_FILES));
-  };
-
-  const removeAt = (index: number) => {
-    setPreviews((current) => {
-      URL.revokeObjectURL(current[index].url);
-      return current.filter((_, i) => i !== index);
-    });
-  };
 
   const submit = async () => {
-    if (previews.length === 0) {
+    if (images.length === 0) {
       setError('حداقل یک تصویر از قطعه لازم است.');
       return;
     }
@@ -87,15 +45,14 @@ export default function ProductRequestPage() {
     setError(null);
     try {
       // Uploads are not wired to object storage yet, so the images travel as
-      // data URLs. Swapping in a presigned S3 upload only changes this step —
-      // the request payload already expects a list of URLs.
-      const images = await Promise.all(previews.map((p) => toDataUrl(p.file)));
-
+      // data URLs (see FilePicker) — the request payload already expects a
+      // list of URLs, so swapping in a presigned S3 upload only changes how
+      // FilePicker resolves each file.
       const response = await fetch(`${BASE_URL}/product-requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          images,
+          images: images.map((image) => image.dataUrl),
           vehicleLabel: form.vehicleLabel || undefined,
           possibleName: form.possibleName || undefined,
           brandGuess: form.brandGuess || undefined,
@@ -263,53 +220,16 @@ export default function ProductRequestPage() {
                 حداکثر {MAX_FILES} تصویر، هر کدام تا ۵ مگابایت. JPG، PNG یا WebP.
               </p>
 
-              <input
-                ref={fileRef}
-                type="file"
-                accept={ACCEPTED.join(',')}
+              <FilePicker
+                label="تصویر قطعه"
+                hint="گرفتن عکس یا انتخاب از گالری"
+                accept={IMAGE_TYPES}
                 multiple
-                capture="environment"
-                onChange={(event) => addFiles(event.target.files)}
-                className="sr-only"
-                aria-label="انتخاب تصویر قطعه"
+                maxFiles={MAX_FILES}
+                value={images}
+                onChange={setImages}
+                className="mt-5"
               />
-
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={previews.length >= MAX_FILES}
-                className="mt-5 flex w-full flex-col items-center gap-3 rounded-card border-2 border-dashed border-ink-200 bg-white py-10 transition-colors hover:border-brand-500 disabled:opacity-50"
-              >
-                <CameraIcon className="size-9 text-ink-400" aria-hidden />
-                <span className="text-sm font-bold text-ink-700">گرفتن عکس یا انتخاب از گالری</span>
-              </button>
-
-              {previews.length > 0 && (
-                <ul className="mt-5 grid grid-cols-3 gap-3">
-                  {previews.map((preview, index) => (
-                    <li key={preview.url} className="relative">
-                      <div className="relative aspect-square overflow-hidden rounded-xl bg-white">
-                        <Image
-                          src={preview.url}
-                          alt={`تصویر ${index + 1}`}
-                          fill
-                          sizes="120px"
-                          unoptimized
-                          className="object-cover"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeAt(index)}
-                        aria-label={`حذف تصویر ${index + 1}`}
-                        className="absolute -top-2 -end-2 grid size-7 place-items-center rounded-full bg-ink-600 text-xs text-white"
-                      >
-                        ✕
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
 
               {error && (
                 <p role="alert" className="mt-5 rounded-xl bg-red-50 px-4 py-3 text-xs text-red-700">
@@ -337,13 +257,4 @@ function Labeled({ label, children }: { label: string; children: React.ReactNode
       {children}
     </label>
   );
-}
-
-function toDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error('خواندن فایل ناموفق بود.'));
-    reader.readAsDataURL(file);
-  });
 }

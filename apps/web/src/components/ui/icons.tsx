@@ -177,3 +177,31 @@ export function CarIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function FactoryIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M3 20V10l5 3.2V10l5 3.2V10l5 3.2V6.5h3V20z" />
+      <path d="M3 20h18" />
+    </svg>
+  );
+}
+
+export function ShieldCheckIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 3.2 19.5 6v6.2c0 4.6-3.2 7.5-7.5 8.6-4.3-1.1-7.5-4-7.5-8.6V6z" />
+      <path d="m9 12 2.2 2.2L15.5 10" />
+    </svg>
+  );
+}
+
+export function FileIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M7 3h7l4 4v14H7z" />
+      <path d="M14 3v4h4" />
+      <path d="M9.5 13h5M9.5 16.2h5" />
+    </svg>
+  );
+}
