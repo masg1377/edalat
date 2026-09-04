@@ -40,7 +40,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/',
-        destination: '/home',
+        destination: '/apps/ecommerce/products/list',
         permanent: true,
         locale: false
       }
