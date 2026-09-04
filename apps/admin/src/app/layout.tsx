@@ -17,9 +17,8 @@ import '@/app/globals.css'
 import '@assets/iconify-icons/generated-icons.css'
 
 export const metadata = {
-  title: 'Vuexy - MUI Next.js Admin Dashboard Template',
-  description:
-    'Vuexy - MUI Next.js Admin Dashboard Template - is the most developer friendly & highly customizable Admin Dashboard Template based on MUI v5.'
+  title: 'عدالت فیلتر - پنل مدیریت',
+  description: 'پنل مدیریت عدالت فیلتر — مدیریت محصولات، خودروها، برندها و دسته‌بندی‌ها.'
 }
 
 const RootLayout = async (props: ChildrenType) => {
