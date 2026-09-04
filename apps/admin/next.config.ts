@@ -41,7 +41,12 @@ const nextConfig: NextConfig = {
       {
         source: '/',
         destination: '/apps/ecommerce/products/list',
-        permanent: true,
+        // Not permanent: a 308 permanent redirect gets cached hard by the
+        // browser (independent of the Next.js/Turbopack dev cache), so any
+        // future change to this destination would silently keep sending
+        // visitors to the OLD target until they clear site data. 307 keeps
+        // this redirect live-editable during development.
+        permanent: false,
         locale: false
       }
     ]
