@@ -31,6 +31,22 @@ const verticalMenuData = (): VerticalMenuDataType[] => [
     label: 'کاربران',
     href: '/apps/user/list',
     icon: 'tabler-users'
+  },
+  {
+    label: 'درخواست‌ها',
+    icon: 'tabler-clipboard-list',
+    children: [
+      {
+        label: 'درخواست‌های تولید',
+        icon: 'tabler-circle',
+        href: '/apps/requests/manufacturing/list'
+      },
+      {
+        label: 'درخواست‌های تصویری',
+        icon: 'tabler-circle',
+        href: '/apps/requests/product-identification/list'
+      }
+    ]
   }
 ]
 

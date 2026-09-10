@@ -2,6 +2,8 @@ import type {
   BrandSummary,
   CategorySummary,
   CatalogResponse,
+  IdentificationStatus,
+  ManufacturingStatus,
   OrderDetail,
   OrderStatus,
   PaginationMeta,
@@ -299,6 +301,114 @@ export interface UpdateUserAdminPayload {
   isActive?: boolean
 }
 
+/* ------------------------------------------------------------------ */
+/* فاز ۹ج — Manufacturing & product-identification admin queues.        */
+/* Mirrors apps/api's manufacturing.module.ts / product-requests.module.ts */
+/* admin DTOs/responses (RequestEvent shared between both request kinds). */
+/* ------------------------------------------------------------------ */
+
+export interface RequestEventRow {
+  id: string
+  fromStatus: string | null
+  toStatus: string
+  note: string | null
+  actorId: string | null
+  isPublic: boolean
+  createdAt: string
+}
+
+export interface AdminManufacturingSummary {
+  id: string
+  referenceNumber: string
+  status: ManufacturingStatus
+  contactName: string
+  companyName: string | null
+  phone: string
+  brandName: string
+  productType: string
+  quantity: number
+  quotedUnitPrice: number | null
+  quotedAt: string | null
+  assignedToId: string | null
+  createdAt: string
+}
+
+export interface AdminManufacturingListResponse {
+  items: AdminManufacturingSummary[]
+  pagination: PaginationMeta
+}
+
+export interface AdminManufacturingRequest extends AdminManufacturingSummary {
+  email: string | null
+  province: string | null
+  city: string | null
+  address: string | null
+  preferredContactMethod: string | null
+  logoUrl: string | null
+  packagingDesignUrl: string | null
+  productCategoryId: string | null
+  productName: string | null
+  technicalCode: string | null
+  targetVehicles: string | null
+  productImageUrl: string | null
+  sampleImageUrl: string | null
+  attachments: string[]
+  description: string | null
+  adminNotes: string | null
+  userId: string | null
+  updatedAt: string
+  events: RequestEventRow[]
+}
+
+export interface UpdateManufacturingAdminPayload {
+  status?: ManufacturingStatus
+  adminNotes?: string
+  quotedUnitPrice?: number
+  quotedAt?: string
+  assignedToId?: string
+  note?: string
+  isPublic?: boolean
+}
+
+export interface AdminIdentificationSummary {
+  id: string
+  referenceNumber: string
+  status: IdentificationStatus
+  images: string[]
+  possibleName: string | null
+  possibleCode: string | null
+  brandGuess: string | null
+  vehicleLabel: string | null
+  vehicleId: string | null
+  quantity: number
+  contactPhone: string | null
+  adminResponse: string | null
+  identifiedProduct: ProductSummary | null
+  createdAt: string
+}
+
+export interface AdminIdentificationListResponse {
+  items: AdminIdentificationSummary[]
+  pagination: PaginationMeta
+}
+
+export interface AdminIdentificationRequest extends AdminIdentificationSummary {
+  description: string | null
+  adminNotes: string | null
+  userId: string | null
+  updatedAt: string
+  events: RequestEventRow[]
+}
+
+export interface UpdateIdentificationAdminPayload {
+  status?: IdentificationStatus
+  identifiedProductId?: string
+  adminResponse?: string
+  adminNotes?: string
+  note?: string
+  isPublic?: boolean
+}
+
 export const adminApi = {
   products: {
     // PRD §77/Rule 7 — reused, not reimplemented: `GET /products` is the
@@ -397,5 +507,31 @@ export const adminApi = {
     get: (id: string) => authFetch<AdminUserSummary>(`/users/admin/${id}`),
     update: (id: string, payload: UpdateUserAdminPayload) =>
       authFetch<AdminUserSummary>(`/users/admin/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+  },
+
+  // فاز ۹ج — PRD §55. Requires ADMIN/MANUFACTURING_OPERATOR/SUPER_ADMIN
+  // (ManufacturingController admin routes) — see manufacturing.module.ts.
+  manufacturing: {
+    listAdmin: (params: Record<string, QueryValue> = {}) =>
+      authFetch<AdminManufacturingListResponse>(`/manufacturing/requests/admin${query(params)}`),
+    get: (id: string) => authFetch<AdminManufacturingRequest>(`/manufacturing/requests/admin/${id}`),
+    update: (id: string, payload: UpdateManufacturingAdminPayload) =>
+      authFetch<AdminManufacturingRequest>(`/manufacturing/requests/admin/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      })
+  },
+
+  // فاز ۹ج — PRD §56. Requires ADMIN/SALES_OPERATOR/SUPER_ADMIN
+  // (ProductRequestsController admin routes) — see product-requests.module.ts.
+  productRequests: {
+    listAdmin: (params: Record<string, QueryValue> = {}) =>
+      authFetch<AdminIdentificationListResponse>(`/product-requests/admin${query(params)}`),
+    get: (id: string) => authFetch<AdminIdentificationRequest>(`/product-requests/admin/${id}`),
+    update: (id: string, payload: UpdateIdentificationAdminPayload) =>
+      authFetch<AdminIdentificationRequest>(`/product-requests/admin/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      })
   }
 }
