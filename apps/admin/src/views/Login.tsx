@@ -125,7 +125,7 @@ return
 
       const next = searchParams.get('next')
 
-      router.replace(next && next.startsWith('/') ? next : '/home')
+      router.replace(next && next.startsWith('/') ? next : '/apps/ecommerce/products/list')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'ورود ناموفق بود.')
       setSubmitting(false)

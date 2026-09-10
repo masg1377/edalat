@@ -3,14 +3,24 @@ import type { HorizontalMenuDataType } from '@/types/menuTypes'
 
 const horizontalMenuData = (): HorizontalMenuDataType[] => [
   {
-    label: 'Home',
-    href: '/home',
-    icon: 'tabler-smart-home'
+    label: 'محصولات',
+    href: '/apps/ecommerce/products/list',
+    icon: 'tabler-box'
   },
   {
-    label: 'About',
-    href: '/about',
-    icon: 'tabler-info-circle'
+    label: 'دسته‌بندی‌ها',
+    href: '/apps/ecommerce/products/category',
+    icon: 'tabler-sitemap'
+  },
+  {
+    label: 'برندها',
+    href: '/apps/ecommerce/products/brands',
+    icon: 'tabler-tag'
+  },
+  {
+    label: 'خودروها',
+    href: '/apps/ecommerce/products/vehicles',
+    icon: 'tabler-car'
   }
 ]
 
