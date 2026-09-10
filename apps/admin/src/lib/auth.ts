@@ -101,8 +101,14 @@ return JSON.parse(decodeBase64Url(payload)) as JwtPayload
   }
 }
 
-/** PRD §51/§55/§56 — roles allowed into the admin panel's UI (backend enforces the rest). */
-export const ADMIN_PANEL_ROLES = ['ADMIN', 'SUPER_ADMIN', 'CONTENT_MANAGER'] as const
+/**
+ * PRD §51/§55/§56/§57 — roles allowed into the admin panel's UI (backend
+ * enforces the rest). `SALES_OPERATOR` was added in phase 9ب: PRD §57 grants
+ * that role `GET/PATCH /orders/admin*`, so it needs to actually reach
+ * `(private)` at all — before this it could authenticate but was bounced
+ * straight back to `/login` by this same gate.
+ */
+export const ADMIN_PANEL_ROLES = ['ADMIN', 'SUPER_ADMIN', 'CONTENT_MANAGER', 'SALES_OPERATOR'] as const
 export type AdminPanelRole = (typeof ADMIN_PANEL_ROLES)[number]
 
 export function isAdminPanelRole(role: string | null | undefined): role is AdminPanelRole {

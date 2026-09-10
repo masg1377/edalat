@@ -1,9 +1,13 @@
 import type {
   BrandSummary,
-  CatalogResponse,
   CategorySummary,
+  CatalogResponse,
+  OrderDetail,
+  OrderStatus,
+  PaginationMeta,
   ProductSummary,
-  VehicleSummary,
+  UserRole,
+  VehicleSummary
 } from '@edalat/shared'
 
 import { authFetch } from './auth'
@@ -231,13 +235,77 @@ export interface AdminVehicleListResponse {
   limit: number
 }
 
+/* ------------------------------------------------------------------ */
+/* Phase 9ب — Orders & Users admin management (PRD §57/§51). Mirrors   */
+/* apps/api's orders.module.ts / users.module.ts admin DTOs/responses. */
+/* ------------------------------------------------------------------ */
+
+export interface AdminOrderSummary {
+  id: string
+  orderNumber: string
+  status: OrderStatus
+  itemCount: number
+  grandTotal: number
+  createdAt: string
+  trackingCode: string | null
+  customerName: string | null
+  customerPhone: string
+}
+
+export interface AdminOrdersListResponse {
+  items: AdminOrderSummary[]
+  pagination: PaginationMeta
+}
+
+/** Return shape of `GET /orders/admin/:id` — full `OrderDetail` plus who placed it. */
+export interface AdminOrderDetail extends OrderDetail {
+  userId: string
+  customerName: string | null
+  customerPhone: string
+  customerEmail: string | null
+  adminNote: string | null
+}
+
+export interface UpdateOrderAdminPayload {
+  status?: OrderStatus
+  trackingCode?: string
+  adminNote?: string
+}
+
+export interface AdminUserSummary {
+  id: string
+  phone: string
+  phoneVerified: boolean
+  email: string | null
+  emailVerified: boolean
+  firstName: string | null
+  lastName: string | null
+  companyName: string | null
+  nationalId: string | null
+  role: UserRole
+  isActive: boolean
+  lastLoginAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminUsersListResponse {
+  items: AdminUserSummary[]
+  pagination: PaginationMeta
+}
+
+export interface UpdateUserAdminPayload {
+  role?: UserRole
+  isActive?: boolean
+}
+
 export const adminApi = {
   products: {
     // PRD §77/Rule 7 — reused, not reimplemented: `GET /products` is the
     // same public catalog endpoint the storefront calls. It always filters
     // `isActive: true` (ProductsService.buildWhere), so a deactivated
     // product will not appear here either — a known limitation, tracked in
-    // claude/وضعیت-پیاده‌سازی.md until phase 9ب adds an admin-scoped listing.
+    // claude/وضعیت-پیاده‌سازی.md until an admin-scoped listing is added.
     catalog: (params: Record<string, QueryValue> = {}) =>
       publicRequest<CatalogResponse>(`/products${query(params)}`),
 
@@ -310,5 +378,24 @@ export const adminApi = {
         body: JSON.stringify(payload)
       }),
     remove: (id: string) => authFetch<{ ok: true }>(`/vehicles/${id}`, { method: 'DELETE' })
+  },
+
+  // PRD §57 — phase 9ب. All three routes require ADMIN/SALES_OPERATOR/SUPER_ADMIN
+  // (OrdersController#listAdmin/findOneAdmin/updateAdmin) — see orders.module.ts.
+  orders: {
+    listAdmin: (params: Record<string, QueryValue> = {}) =>
+      authFetch<AdminOrdersListResponse>(`/orders/admin${query(params)}`),
+    get: (id: string) => authFetch<AdminOrderDetail>(`/orders/admin/${id}`),
+    update: (id: string, payload: UpdateOrderAdminPayload) =>
+      authFetch<AdminOrderDetail>(`/orders/admin/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+  },
+
+  // PRD §51 — phase 9ب. Requires ADMIN/SUPER_ADMIN (UsersController admin routes).
+  users: {
+    listAdmin: (params: Record<string, QueryValue> = {}) =>
+      authFetch<AdminUsersListResponse>(`/users/admin${query(params)}`),
+    get: (id: string) => authFetch<AdminUserSummary>(`/users/admin/${id}`),
+    update: (id: string, payload: UpdateUserAdminPayload) =>
+      authFetch<AdminUserSummary>(`/users/admin/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
   }
 }

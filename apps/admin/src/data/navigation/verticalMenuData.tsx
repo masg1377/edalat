@@ -21,6 +21,16 @@ const verticalMenuData = (): VerticalMenuDataType[] => [
     label: 'خودروها',
     href: '/apps/ecommerce/products/vehicles',
     icon: 'tabler-car'
+  },
+  {
+    label: 'سفارش‌ها',
+    href: '/apps/ecommerce/orders/list',
+    icon: 'tabler-shopping-cart'
+  },
+  {
+    label: 'کاربران',
+    href: '/apps/user/list',
+    icon: 'tabler-users'
   }
 ]
 
