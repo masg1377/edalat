@@ -10,7 +10,8 @@ import { PrismaService } from '../src/prisma/prisma.service';
 
 /**
  * RBAC integration tests for the phase 9a write endpoints (Product, Category,
- * Brand, Vehicle + Compatibility).
+ * Brand, Vehicle + Compatibility) and the phase 9ب admin endpoints (Orders,
+ * Users).
  *
  * `RolesGuard`/`@Roles()` existed since an earlier phase but sat unused on
  * every controller (`claude/وضعیت-پیاده‌سازی.md`, فاز ۹الف) — this is the
@@ -39,6 +40,8 @@ function tokenFor(role: UserRole): string {
 }
 
 const adminToken = tokenFor(UserRole.ADMIN);
+const superAdminToken = tokenFor(UserRole.SUPER_ADMIN);
+const salesOperatorToken = tokenFor(UserRole.SALES_OPERATOR);
 const contentManagerToken = tokenFor(UserRole.CONTENT_MANAGER);
 const customerToken = tokenFor(UserRole.CUSTOMER);
 
@@ -46,6 +49,13 @@ let app: INestApplication;
 let vehicleBrandId = '';
 let vehicleId = '';
 let productId = '';
+
+// PRD §57/§51 — phase 9ب fixtures: a real User row (Order.userId is a
+// required FK, not scoped by the signed-token trick above) and an Order
+// placed by it, so the admin list/detail/patch endpoints have something to
+// return besides an empty page.
+let testCustomerId = '';
+let testOrderId = '';
 
 beforeAll(async () => {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -85,9 +95,26 @@ beforeAll(async () => {
     },
   });
   productId = product.id;
+
+  const testCustomer = await prisma.user.create({
+    data: { phone: `0912${Date.now().toString().slice(-7)}`, role: UserRole.CUSTOMER },
+  });
+  testCustomerId = testCustomer.id;
+
+  const testOrder = await prisma.order.create({
+    data: {
+      orderNumber: slug('order').toUpperCase(),
+      userId: testCustomerId,
+      subtotal: 100_000,
+      grandTotal: 100_000,
+    },
+  });
+  testOrderId = testOrder.id;
 });
 
 afterAll(async () => {
+  await prisma.order.deleteMany({ where: { id: testOrderId } });
+  await prisma.user.deleteMany({ where: { id: testCustomerId } });
   await prisma.productVehicleCompatibility.deleteMany({ where: { productId } });
   await prisma.product.deleteMany({ where: { slug: { startsWith: PREFIX } } });
   await prisma.vehicle.deleteMany({ where: { slug: { startsWith: PREFIX } } });
@@ -277,5 +304,223 @@ describe('POST /products/:id/compatibility — RBAC (Rule 3, a real relation)', 
       .get(`/api/v1/vehicles/${vehicleId}/compatibility`)
       .expect(200);
     expect(listResponse.body.some((row: { id: string }) => row.id === response.body.id)).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Phase 9ب — GET /orders/admin, GET/PATCH /orders/admin/:id           */
+/* (PRD §57, @Roles(ADMIN, SALES_OPERATOR, SUPER_ADMIN))               */
+/* ------------------------------------------------------------------ */
+
+describe('GET /orders/admin — RBAC', () => {
+  it('401s with no token', async () => {
+    await request(app.getHttpServer()).get('/api/v1/orders/admin').expect(401);
+  });
+
+  it('403s with a CUSTOMER token', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/orders/admin')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+  });
+
+  it('403s CONTENT_MANAGER — orders are not a catalog role (unlike products/categories)', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/orders/admin')
+      .set('Authorization', `Bearer ${contentManagerToken}`)
+      .expect(403);
+  });
+
+  it('200s ADMIN and returns every order, not scoped to the caller — includes our fixture order', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/orders/admin')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(Array.isArray(response.body.items)).toBe(true);
+    expect(response.body.pagination).toBeDefined();
+    expect(response.body.items.some((row: { id: string }) => row.id === testOrderId)).toBe(true);
+  });
+
+  it('also allows SALES_OPERATOR — PRD §57 grants order management to that role too', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/orders/admin')
+      .set('Authorization', `Bearer ${salesOperatorToken}`)
+      .expect(200);
+
+    expect(response.body.items.some((row: { id: string }) => row.id === testOrderId)).toBe(true);
+  });
+
+  it('filters by orderNumber', async () => {
+    const order = await prisma.order.findUniqueOrThrow({ where: { id: testOrderId } });
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/orders/admin?orderNumber=${order.orderNumber}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(response.body.items.length).toBeGreaterThan(0);
+    expect(response.body.items.every((row: { orderNumber: string }) => row.orderNumber === order.orderNumber)).toBe(
+      true,
+    );
+  });
+});
+
+describe('GET /orders/admin/:id — RBAC and shape (not scoped to the caller, unlike GET /orders/:id)', () => {
+  it('401s with no token, 403s with CUSTOMER, 200s with ADMIN and includes customer info', async () => {
+    await request(app.getHttpServer()).get(`/api/v1/orders/admin/${testOrderId}`).expect(401);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/orders/admin/${testOrderId}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/orders/admin/${testOrderId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(response.body.id).toBe(testOrderId);
+    expect(response.body.userId).toBe(testCustomerId);
+    expect(response.body.customerPhone).toBeDefined();
+  });
+});
+
+describe('PATCH /orders/admin/:id — RBAC and persistence (PRD §35 status, trackingCode, adminNote)', () => {
+  it('401s with no token, 403s with CUSTOMER', async () => {
+    await request(app.getHttpServer())
+      .patch(`/api/v1/orders/admin/${testOrderId}`)
+      .send({ status: 'PROCESSING' })
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/orders/admin/${testOrderId}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ status: 'PROCESSING' })
+      .expect(403);
+  });
+
+  it('200s SUPER_ADMIN and the change is really persisted', async () => {
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/orders/admin/${testOrderId}`)
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({ status: 'PROCESSING', trackingCode: 'TRACK-123', adminNote: 'یادداشت تستی' })
+      .expect(200);
+
+    expect(response.body.status).toBe('PROCESSING');
+    expect(response.body.trackingCode).toBe('TRACK-123');
+    expect(response.body.adminNote).toBe('یادداشت تستی');
+
+    const row = await prisma.order.findUniqueOrThrow({ where: { id: testOrderId } });
+    expect(row.status).toBe('PROCESSING');
+    expect(row.trackingCode).toBe('TRACK-123');
+    expect(row.adminNote).toBe('یادداشت تستی');
+  });
+
+  it('400s an invalid status value even for an authorized ADMIN', async () => {
+    await request(app.getHttpServer())
+      .patch(`/api/v1/orders/admin/${testOrderId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'NOT_A_REAL_STATUS' })
+      .expect(400);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Phase 9ب — GET /users/admin, GET/PATCH /users/admin/:id             */
+/* (PRD §51, @Roles(ADMIN, SUPER_ADMIN))                               */
+/* ------------------------------------------------------------------ */
+
+describe('GET /users/admin — RBAC', () => {
+  it('401s with no token', async () => {
+    await request(app.getHttpServer()).get('/api/v1/users/admin').expect(401);
+  });
+
+  it('403s with a CUSTOMER token', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/users/admin')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+  });
+
+  it('403s SALES_OPERATOR — user management is narrower than order management (ADMIN/SUPER_ADMIN only)', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/users/admin')
+      .set('Authorization', `Bearer ${salesOperatorToken}`)
+      .expect(403);
+  });
+
+  it('200s ADMIN and includes our fixture customer', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/users/admin')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(Array.isArray(response.body.items)).toBe(true);
+    expect(response.body.pagination).toBeDefined();
+    expect(response.body.items.some((row: { id: string }) => row.id === testCustomerId)).toBe(true);
+  });
+
+  it('filters by phone', async () => {
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: testCustomerId } });
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/users/admin?phone=${user.phone}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(response.body.items.some((row: { id: string }) => row.id === testCustomerId)).toBe(true);
+  });
+});
+
+describe('GET /users/admin/:id — RBAC', () => {
+  it('401s with no token, 403s with CUSTOMER, 200s with ADMIN', async () => {
+    await request(app.getHttpServer()).get(`/api/v1/users/admin/${testCustomerId}`).expect(401);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/users/admin/${testCustomerId}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/users/admin/${testCustomerId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(response.body.id).toBe(testCustomerId);
+  });
+});
+
+describe('PATCH /users/admin/:id — RBAC and persistence (PRD §51 role/isActive)', () => {
+  it('401s with no token, 403s with CUSTOMER, 403s with SALES_OPERATOR', async () => {
+    await request(app.getHttpServer())
+      .patch(`/api/v1/users/admin/${testCustomerId}`)
+      .send({ role: 'WHOLESALE_CUSTOMER' })
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/users/admin/${testCustomerId}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ role: 'WHOLESALE_CUSTOMER' })
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/users/admin/${testCustomerId}`)
+      .set('Authorization', `Bearer ${salesOperatorToken}`)
+      .send({ role: 'WHOLESALE_CUSTOMER' })
+      .expect(403);
+  });
+
+  it('200s ADMIN, changes role and isActive, and the change is really persisted', async () => {
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/users/admin/${testCustomerId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ role: 'WHOLESALE_CUSTOMER', isActive: false })
+      .expect(200);
+
+    expect(response.body.role).toBe('WHOLESALE_CUSTOMER');
+    expect(response.body.isActive).toBe(false);
+
+    const row = await prisma.user.findUniqueOrThrow({ where: { id: testCustomerId } });
+    expect(row.role).toBe('WHOLESALE_CUSTOMER');
+    expect(row.isActive).toBe(false);
   });
 });

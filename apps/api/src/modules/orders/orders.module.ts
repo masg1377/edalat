@@ -7,14 +7,25 @@ import {
   Module,
   NotFoundException,
   Param,
+  Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsOptional, IsString } from 'class-validator';
-import { OrderStatus, type PurchaseType } from '@edalat/shared';
+import { ApiBearerAuth, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Prisma } from '@prisma/client';
+import {
+  DEFAULT_PAGE_SIZE,
+  MAX_PAGE_SIZE,
+  OrderStatus,
+  UserRole,
+  buildPagination,
+  type PurchaseType,
+} from '@edalat/shared';
 
-import { CurrentUser, JwtAuthGuard, type RequestUser } from '../../common/auth.decorators';
+import { CurrentUser, JwtAuthGuard, Roles, RolesGuard, type RequestUser } from '../../common/auth.decorators';
 import { mapOrderDetail } from '../../common/mappers';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CartModule, CartService } from '../cart/cart.module';
@@ -31,6 +42,67 @@ class CheckoutDto {
   @IsOptional()
   @IsString()
   customerNote?: string;
+}
+
+/** PRD §57/§35 — filters for `GET /orders/admin`. */
+class AdminOrdersQueryDto {
+  @IsOptional()
+  @IsEnum(OrderStatus)
+  status?: OrderStatus;
+
+  /** Partial, case-insensitive match against `orderNumber`. */
+  @IsOptional()
+  @IsString()
+  orderNumber?: string;
+
+  @IsOptional()
+  @IsDateString()
+  dateFrom?: string;
+
+  @IsOptional()
+  @IsDateString()
+  dateTo?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page: number = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(MAX_PAGE_SIZE)
+  limit: number = DEFAULT_PAGE_SIZE;
+}
+
+/** PRD §57 — admin order edits: status, tracking, an internal note. */
+class UpdateOrderAdminDto {
+  @IsOptional()
+  @IsEnum(OrderStatus)
+  status?: OrderStatus;
+
+  @IsOptional()
+  @IsString()
+  trackingCode?: string;
+
+  @IsOptional()
+  @IsString()
+  adminNote?: string;
+}
+
+const adminOrderUserSelect = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  phone: true,
+  email: true,
+} as const;
+
+function customerName(user: { firstName: string | null; lastName: string | null }): string | null {
+  const full = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+  return full.length > 0 ? full : null;
 }
 
 @Injectable()
@@ -216,6 +288,99 @@ export class OrdersService {
     if (!order) throw new NotFoundException('سفارش یافت نشد.');
     return mapOrderDetail(order);
   }
+
+  /* ------------------------------------------------------------------ */
+  /* PRD §57 — admin order management, not scoped to a single userId.    */
+  /* ------------------------------------------------------------------ */
+
+  private static buildAdminWhere(dto: AdminOrdersQueryDto): Prisma.OrderWhereInput {
+    const where: Prisma.OrderWhereInput = {};
+    if (dto.status) where.status = dto.status;
+    if (dto.orderNumber) {
+      where.orderNumber = { contains: dto.orderNumber, mode: 'insensitive' };
+    }
+    if (dto.dateFrom || dto.dateTo) {
+      where.createdAt = {
+        ...(dto.dateFrom ? { gte: new Date(dto.dateFrom) } : {}),
+        ...(dto.dateTo ? { lte: new Date(dto.dateTo) } : {}),
+      };
+    }
+    return where;
+  }
+
+  async listForAdmin(dto: AdminOrdersQueryDto) {
+    const where = OrdersService.buildAdminWhere(dto);
+    const [rows, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (dto.page - 1) * dto.limit,
+        take: dto.limit,
+        include: { user: { select: adminOrderUserSelect }, _count: { select: { items: true } } },
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        orderNumber: row.orderNumber,
+        status: row.status,
+        itemCount: row._count.items,
+        grandTotal: Number(row.grandTotal),
+        createdAt: row.createdAt.toISOString(),
+        trackingCode: row.trackingCode,
+        customerName: customerName(row.user),
+        customerPhone: row.user.phone,
+      })),
+      pagination: buildPagination(dto.page, dto.limit, total),
+    };
+  }
+
+  async findOneForAdmin(id: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id },
+      include: { items: true, payments: true, address: true, user: { select: adminOrderUserSelect } },
+    });
+    if (!order) throw new NotFoundException('سفارش یافت نشد.');
+
+    return {
+      ...mapOrderDetail(order),
+      userId: order.user.id,
+      customerName: customerName(order.user),
+      customerPhone: order.user.phone,
+      customerEmail: order.user.email ?? null,
+      adminNote: order.adminNote ?? null,
+    };
+  }
+
+  /**
+   * PRD §35/§57 — admin status/tracking/note edits. Any enum value is
+   * settable directly (an operator correcting a mis-click needs to move a
+   * status backward too, not just forward through §35's happy path), but the
+   * matching lifecycle timestamp (`shippedAt`/`deliveredAt`/`cancelledAt`/
+   * `paidAt`) is stamped the first time that status is reached, the same way
+   * `confirmMockPayment` already stamps `paidAt`.
+   */
+  async updateAdmin(id: string, dto: UpdateOrderAdminDto) {
+    const existing = await this.prisma.order.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('سفارش یافت نشد.');
+
+    const data: Prisma.OrderUpdateInput = {};
+
+    if (dto.status !== undefined) {
+      data.status = dto.status;
+      if (dto.status === OrderStatus.PAID && !existing.paidAt) data.paidAt = new Date();
+      if (dto.status === OrderStatus.SHIPPED && !existing.shippedAt) data.shippedAt = new Date();
+      if (dto.status === OrderStatus.DELIVERED && !existing.deliveredAt) data.deliveredAt = new Date();
+      if (dto.status === OrderStatus.CANCELLED && !existing.cancelledAt) data.cancelledAt = new Date();
+    }
+    if (dto.trackingCode !== undefined) data.trackingCode = dto.trackingCode;
+    if (dto.adminNote !== undefined) data.adminNote = dto.adminNote;
+
+    await this.prisma.order.update({ where: { id }, data });
+    return this.findOneForAdmin(id);
+  }
 }
 
 @ApiTags('orders')
@@ -224,6 +389,37 @@ export class OrdersService {
 @Controller({ path: 'orders', version: '1' })
 export class OrdersController {
   constructor(private readonly orders: OrdersService) {}
+
+  /* ---- PRD §57 admin routes — must stay ahead of the customer-scoped ---- */
+  /* ---- `:id` route below, or Express would match `/admin` to it first. -- */
+
+  @Get('admin')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SALES_OPERATOR, UserRole.SUPER_ADMIN)
+  @ApiOkResponse({ description: 'PRD §57 — paginated list of every order, not scoped to the caller.' })
+  @ApiQuery({ name: 'status', required: false })
+  @ApiQuery({ name: 'orderNumber', required: false })
+  @ApiQuery({ name: 'dateFrom', required: false })
+  @ApiQuery({ name: 'dateTo', required: false })
+  listAdmin(@Query() dto: AdminOrdersQueryDto) {
+    return this.orders.listForAdmin(dto);
+  }
+
+  @Get('admin/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SALES_OPERATOR, UserRole.SUPER_ADMIN)
+  findOneAdmin(@Param('id') id: string) {
+    return this.orders.findOneForAdmin(id);
+  }
+
+  @Patch('admin/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.SALES_OPERATOR, UserRole.SUPER_ADMIN)
+  updateAdmin(@Param('id') id: string, @Body() dto: UpdateOrderAdminDto) {
+    return this.orders.updateAdmin(id, dto);
+  }
+
+  /* ---------------------------- customer-scoped --------------------------- */
 
   @Get()
   list(@CurrentUser() user: RequestUser) {
