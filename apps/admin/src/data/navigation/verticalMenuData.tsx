@@ -28,6 +28,11 @@ const verticalMenuData = (): VerticalMenuDataType[] => [
     icon: 'tabler-shopping-cart'
   },
   {
+    label: 'نظرات',
+    href: '/apps/ecommerce/manage-reviews',
+    icon: 'tabler-star'
+  },
+  {
     label: 'کاربران',
     href: '/apps/user/list',
     icon: 'tabler-users'

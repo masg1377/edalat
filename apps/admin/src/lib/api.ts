@@ -8,6 +8,7 @@ import type {
   OrderStatus,
   PaginationMeta,
   ProductSummary,
+  ReviewStatus,
   UserRole,
   VehicleSummary
 } from '@edalat/shared'
@@ -409,6 +410,51 @@ export interface UpdateIdentificationAdminPayload {
   isPublic?: boolean
 }
 
+/* ------------------------------------------------------------------ */
+/* فاز ۹د — Reviews admin queue. Mirrors apps/api's reviews.module.ts    */
+/* admin DTOs/responses.                                                */
+/* ------------------------------------------------------------------ */
+
+export interface AdminReviewProductRef {
+  id: string
+  name: string
+  slug: string
+  mainImageUrl: string | null
+}
+
+export interface AdminReviewSummary {
+  id: string
+  rating: number
+  title: string | null
+  comment: string | null
+  status: ReviewStatus
+  isVerifiedPurchase: boolean
+  adminNote: string | null
+  createdAt: string
+  updatedAt: string
+  userName: string
+  userPhone: string
+  product: AdminReviewProductRef
+}
+
+export interface AdminReviewStats {
+  byStatus: Record<ReviewStatus, number>
+  approvedAverageRating: number
+  approvedCount: number
+  total: number
+}
+
+export interface AdminReviewListResponse {
+  items: AdminReviewSummary[]
+  pagination: PaginationMeta
+  stats: AdminReviewStats
+}
+
+export interface UpdateReviewAdminPayload {
+  status?: ReviewStatus
+  adminNote?: string
+}
+
 export const adminApi = {
   products: {
     // PRD §77/Rule 7 — reused, not reimplemented: `GET /products` is the
@@ -530,6 +576,19 @@ export const adminApi = {
     get: (id: string) => authFetch<AdminIdentificationRequest>(`/product-requests/admin/${id}`),
     update: (id: string, payload: UpdateIdentificationAdminPayload) =>
       authFetch<AdminIdentificationRequest>(`/product-requests/admin/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload)
+      })
+  },
+
+  // فاز ۹د — PRD §56. Requires ADMIN/CONTENT_MANAGER/SUPER_ADMIN
+  // (ReviewsController admin routes) — see reviews.module.ts.
+  reviews: {
+    listAdmin: (params: Record<string, QueryValue> = {}) =>
+      authFetch<AdminReviewListResponse>(`/reviews/admin${query(params)}`),
+    get: (id: string) => authFetch<AdminReviewSummary>(`/reviews/admin/${id}`),
+    update: (id: string, payload: UpdateReviewAdminPayload) =>
+      authFetch<AdminReviewSummary>(`/reviews/admin/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(payload)
       })
