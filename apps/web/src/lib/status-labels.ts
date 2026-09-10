@@ -1,4 +1,4 @@
-import type { IdentificationStatus, ManufacturingStatus, OrderStatus } from '@edalat/shared';
+import type { IdentificationStatus, ManufacturingStatus, OrderStatus, ReviewStatus } from '@edalat/shared';
 
 /**
  * Persian labels + pill tones for every status enum shown to the customer.
@@ -88,4 +88,18 @@ export const IDENTIFICATION_STATUS_TONES: Record<IdentificationStatus, string> =
   UNAVAILABLE: 'bg-red-100 text-red-700',
   COMPLETED: 'bg-green-100 text-green-800',
   REJECTED: 'bg-red-100 text-red-700',
+};
+
+export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
+  PENDING: 'در انتظار تأیید',
+  APPROVED: 'تأییدشده',
+  REJECTED: 'ردشده',
+  HIDDEN: 'مخفی‌شده',
+};
+
+export const REVIEW_STATUS_TONES: Record<ReviewStatus, string> = {
+  PENDING: 'bg-amber-100 text-amber-800',
+  APPROVED: 'bg-green-100 text-green-800',
+  REJECTED: 'bg-red-100 text-red-700',
+  HIDDEN: 'bg-ink-100 text-ink-600',
 };

@@ -9,6 +9,7 @@ import { CompatibilityTable } from '@/components/product/compatibility-table';
 import { FavoriteButton } from '@/components/product/favorite-button';
 import { ProductCard } from '@/components/product/product-card';
 import { ProductGallery } from '@/components/product/product-gallery';
+import { ProductReviews } from '@/components/product/product-reviews';
 import { ProductTabs } from '@/components/product/product-tabs';
 import { PurchaseBox } from '@/components/product/purchase-box';
 import { ApiError, api, safe } from '@/lib/api';
@@ -54,6 +55,14 @@ export default async function ProductDetailPage({ params }: PageProps) {
   }
 
   const specEntries = Object.entries(product.specifications ?? {});
+
+  // PRD §36 — APPROVED reviews for the "نظرات کاربران" tab, fetched
+  // server-side so the tab has content on first paint (see ProductReviews).
+  const reviews = await safe(api.products.reviews(product.id, { limit: 20 }), {
+    items: [],
+    pagination: { page: 1, limit: 20, total: 0, totalPages: 0, hasNext: false, hasPrevious: false },
+    averageRating: 0,
+  });
 
   // PRD §62 — structured data so a part number search on Google lands here.
   const jsonLd = {
@@ -221,6 +230,11 @@ export default async function ProductDetailPage({ params }: PageProps) {
                     ) : (
                       <p className="text-sm text-ink-500">مشخصات فنی هنوز ثبت نشده است.</p>
                     ),
+                },
+                {
+                  id: 'reviews',
+                  label: 'نظرات کاربران',
+                  content: <ProductReviews productId={product.id} initial={reviews} />,
                 },
                 {
                   id: 'replacement',

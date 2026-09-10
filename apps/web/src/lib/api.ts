@@ -4,6 +4,7 @@ import type {
   CategorySummary,
   PriceQuote,
   ProductDetail,
+  ProductReviewsResponse,
   ProductSummary,
   SearchResponse,
   SearchSuggestion,
@@ -87,6 +88,12 @@ export const api = {
     /** PRD §81 — never compute a price in the browser. */
     price: (productId: string, quantity: number, purchaseType: 'RETAIL' | 'WHOLESALE') =>
       request<PriceQuote>(`/products/${productId}/price${query({ quantity, purchaseType })}`, {
+        revalidate: 0,
+      }),
+
+    /** PRD §36/فاز ۹د — APPROVED reviews only; feeds the Product Detail tab. */
+    reviews: (productId: string, params: Record<string, QueryValue> = {}) =>
+      request<ProductReviewsResponse>(`/products/${productId}/reviews${query(params)}`, {
         revalidate: 0,
       }),
   },

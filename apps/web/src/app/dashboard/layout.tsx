@@ -15,6 +15,7 @@ const TABS: Array<{ href: string; label: string; exact?: boolean }> = [
   { href: '/dashboard/manufacturing-requests', label: 'درخواست‌های تولید' },
   { href: '/dashboard/requests', label: 'درخواست‌های تصویری' },
   { href: '/dashboard/favorites', label: 'علاقه‌مندی‌ها' },
+  { href: '/dashboard/reviews', label: 'نظرات من' },
   { href: '/dashboard/addresses', label: 'آدرس‌ها' },
   { href: '/dashboard/profile', label: 'پروفایل' },
 ];
@@ -28,10 +29,10 @@ const TABS: Array<{ href: string; label: string; exact?: boolean }> = [
  * `product-request/page.tsx` → `/dashboard/requests` — and 404'd. Phase 6
  * fills them in.
  *
- * "نظرات من" (Reviews) is deliberately not a real tab: there is no Review
- * backend yet (gap documented since phase 3 — PRD §36/§50). It appears below
- * as a disabled "به‌زودی" (soon) row instead of a link to nowhere, per the
- * phase 6 decision in `claude/وضعیت-پیاده‌سازی.md`.
+ * "نظرات من" (Reviews) was a disabled "به‌زودی" row since phase 6 because
+ * the reviews backend didn't exist (PRD §36/§50) — فاز ۹د adds the real
+ * `GET /reviews/mine` endpoint and `/dashboard/reviews`, so it's a normal
+ * tab now like the others above.
  *
  * "خودروی من" (My Vehicle, PRD §26) is P1 and gets only a small CTA on the
  * Overview tab, not a tab of its own — same call as phase 4.
@@ -91,15 +92,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   {tab.label}
                 </Link>
               ))}
-              <span
-                className="flex shrink-0 items-center justify-center gap-1.5 rounded-pill px-4 py-2.5 text-sm text-ink-400 lg:justify-start"
-                title="این بخش هنوز آماده نشده است."
-              >
-                نظرات من
-                <span className="rounded-pill bg-ink-100 px-2 py-0.5 text-[10px] text-ink-500">
-                  به‌زودی
-                </span>
-              </span>
             </nav>
           </aside>
 
