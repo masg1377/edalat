@@ -43,6 +43,7 @@ const adminToken = tokenFor(UserRole.ADMIN);
 const superAdminToken = tokenFor(UserRole.SUPER_ADMIN);
 const salesOperatorToken = tokenFor(UserRole.SALES_OPERATOR);
 const contentManagerToken = tokenFor(UserRole.CONTENT_MANAGER);
+const manufacturingOperatorToken = tokenFor(UserRole.MANUFACTURING_OPERATOR);
 const customerToken = tokenFor(UserRole.CUSTOMER);
 
 let app: INestApplication;
@@ -56,6 +57,11 @@ let productId = '';
 // return besides an empty page.
 let testCustomerId = '';
 let testOrderId = '';
+
+// فاز ۹ج fixtures — one ManufacturingRequest and one ProductIdentificationRequest
+// so the admin list/detail/patch endpoints under test have real rows to return.
+let testManufacturingRequestId = '';
+let testIdentificationRequestId = '';
 
 beforeAll(async () => {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -110,9 +116,43 @@ beforeAll(async () => {
     },
   });
   testOrderId = testOrder.id;
+
+  const testManufacturingRequest = await prisma.manufacturingRequest.create({
+    data: {
+      referenceNumber: slug('mfg').toUpperCase(),
+      contactName: `${PREFIX} مشتری تولید`,
+      phone: '09120000002',
+      brandName: `${PREFIX} برند`,
+      productType: 'فیلتر روغن',
+      quantity: 100,
+      status: 'SUBMITTED',
+      events: { create: { toStatus: 'SUBMITTED', note: 'درخواست ثبت شد.' } },
+    },
+  });
+  testManufacturingRequestId = testManufacturingRequest.id;
+
+  const testIdentificationRequest = await prisma.productIdentificationRequest.create({
+    data: {
+      referenceNumber: slug('img').toUpperCase(),
+      images: ['https://example.com/fixture.jpg'],
+      status: 'SUBMITTED',
+      events: { create: { toStatus: 'SUBMITTED', note: 'تصویر دریافت شد.' } },
+    },
+  });
+  testIdentificationRequestId = testIdentificationRequest.id;
 });
 
 afterAll(async () => {
+  await prisma.requestEvent.deleteMany({
+    where: {
+      OR: [
+        { manufacturingRequestId: testManufacturingRequestId },
+        { identificationRequestId: testIdentificationRequestId },
+      ],
+    },
+  });
+  await prisma.manufacturingRequest.deleteMany({ where: { id: testManufacturingRequestId } });
+  await prisma.productIdentificationRequest.deleteMany({ where: { id: testIdentificationRequestId } });
   await prisma.order.deleteMany({ where: { id: testOrderId } });
   await prisma.user.deleteMany({ where: { id: testCustomerId } });
   await prisma.productVehicleCompatibility.deleteMany({ where: { productId } });
@@ -522,5 +562,276 @@ describe('PATCH /users/admin/:id — RBAC and persistence (PRD §51 role/isActiv
     const row = await prisma.user.findUniqueOrThrow({ where: { id: testCustomerId } });
     expect(row.role).toBe('WHOLESALE_CUSTOMER');
     expect(row.isActive).toBe(false);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* فاز ۹ج — GET /manufacturing/requests/admin,                         */
+/* GET/PATCH /manufacturing/requests/admin/:id                         */
+/* (PRD §55, @Roles(ADMIN, MANUFACTURING_OPERATOR, SUPER_ADMIN))       */
+/* ------------------------------------------------------------------ */
+
+describe('GET /manufacturing/requests/admin — RBAC', () => {
+  it('401s with no token', async () => {
+    await request(app.getHttpServer()).get('/api/v1/manufacturing/requests/admin').expect(401);
+  });
+
+  it('403s with a CUSTOMER token', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/manufacturing/requests/admin')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+  });
+
+  it('403s SALES_OPERATOR — this queue is MANUFACTURING_OPERATOR/ADMIN territory, not sales', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/manufacturing/requests/admin')
+      .set('Authorization', `Bearer ${salesOperatorToken}`)
+      .expect(403);
+  });
+
+  it('200s MANUFACTURING_OPERATOR and returns every request, including our fixture', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/manufacturing/requests/admin')
+      .set('Authorization', `Bearer ${manufacturingOperatorToken}`)
+      .expect(200);
+
+    expect(Array.isArray(response.body.items)).toBe(true);
+    expect(response.body.pagination).toBeDefined();
+    expect(response.body.items.some((row: { id: string }) => row.id === testManufacturingRequestId)).toBe(true);
+  });
+
+  it('200s ADMIN/SUPER_ADMIN too', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/manufacturing/requests/admin')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/manufacturing/requests/admin')
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .expect(200);
+  });
+
+  it('filters by search (referenceNumber/contactName/companyName)', async () => {
+    const row = await prisma.manufacturingRequest.findUniqueOrThrow({ where: { id: testManufacturingRequestId } });
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/manufacturing/requests/admin?search=${row.referenceNumber}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(response.body.items.some((r: { id: string }) => r.id === testManufacturingRequestId)).toBe(true);
+  });
+});
+
+describe('GET /manufacturing/requests/admin/:id — RBAC and shape (full event trail, unlike the customer route)', () => {
+  it('401s with no token, 403s with CUSTOMER, 200s with MANUFACTURING_OPERATOR', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/v1/manufacturing/requests/admin/${testManufacturingRequestId}`)
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/manufacturing/requests/admin/${testManufacturingRequestId}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/manufacturing/requests/admin/${testManufacturingRequestId}`)
+      .set('Authorization', `Bearer ${manufacturingOperatorToken}`)
+      .expect(200);
+
+    expect(response.body.id).toBe(testManufacturingRequestId);
+    expect(Array.isArray(response.body.events)).toBe(true);
+  });
+});
+
+describe('PATCH /manufacturing/requests/admin/:id — RBAC, persistence and RequestEvent trail', () => {
+  it('401s with no token, 403s with CUSTOMER, 403s with SALES_OPERATOR', async () => {
+    await request(app.getHttpServer())
+      .patch(`/api/v1/manufacturing/requests/admin/${testManufacturingRequestId}`)
+      .send({ status: 'REVIEWING' })
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/manufacturing/requests/admin/${testManufacturingRequestId}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ status: 'REVIEWING' })
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/manufacturing/requests/admin/${testManufacturingRequestId}`)
+      .set('Authorization', `Bearer ${salesOperatorToken}`)
+      .send({ status: 'REVIEWING' })
+      .expect(403);
+  });
+
+  it('200s MANUFACTURING_OPERATOR, persists status/adminNotes/quotedUnitPrice, and appends a RequestEvent', async () => {
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/manufacturing/requests/admin/${testManufacturingRequestId}`)
+      .set('Authorization', `Bearer ${manufacturingOperatorToken}`)
+      .send({ status: 'REVIEWING', adminNotes: 'یادداشت داخلی تستی', quotedUnitPrice: 250000 })
+      .expect(200);
+
+    expect(response.body.status).toBe('REVIEWING');
+    expect(response.body.adminNotes).toBe('یادداشت داخلی تستی');
+    expect(response.body.quotedUnitPrice).toBe(250000);
+    expect(response.body.quotedAt).toBeTruthy();
+    expect(
+      response.body.events.some(
+        (e: { fromStatus: string | null; toStatus: string }) =>
+          e.fromStatus === 'SUBMITTED' && e.toStatus === 'REVIEWING',
+      ),
+    ).toBe(true);
+
+    const row = await prisma.manufacturingRequest.findUniqueOrThrow({ where: { id: testManufacturingRequestId } });
+    expect(row.status).toBe('REVIEWING');
+    expect(Number(row.quotedUnitPrice)).toBe(250000);
+  });
+
+  it('400s an invalid status value even for an authorized operator', async () => {
+    await request(app.getHttpServer())
+      .patch(`/api/v1/manufacturing/requests/admin/${testManufacturingRequestId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'NOT_A_REAL_STATUS' })
+      .expect(400);
+  });
+
+  it('400s a non-positive quotedUnitPrice', async () => {
+    await request(app.getHttpServer())
+      .patch(`/api/v1/manufacturing/requests/admin/${testManufacturingRequestId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ quotedUnitPrice: -10 })
+      .expect(400);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* فاز ۹ج — GET /product-requests/admin,                                */
+/* GET/PATCH /product-requests/admin/:id                                */
+/* (PRD §56, @Roles(ADMIN, SALES_OPERATOR, SUPER_ADMIN))                */
+/* ------------------------------------------------------------------ */
+
+describe('GET /product-requests/admin — RBAC', () => {
+  it('401s with no token', async () => {
+    await request(app.getHttpServer()).get('/api/v1/product-requests/admin').expect(401);
+  });
+
+  it('403s with a CUSTOMER token', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/product-requests/admin')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+  });
+
+  it('403s MANUFACTURING_OPERATOR — this queue is SALES_OPERATOR/ADMIN territory, not manufacturing', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/product-requests/admin')
+      .set('Authorization', `Bearer ${manufacturingOperatorToken}`)
+      .expect(403);
+  });
+
+  it('200s SALES_OPERATOR and returns every request, including our fixture', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/product-requests/admin')
+      .set('Authorization', `Bearer ${salesOperatorToken}`)
+      .expect(200);
+
+    expect(Array.isArray(response.body.items)).toBe(true);
+    expect(response.body.pagination).toBeDefined();
+    expect(response.body.items.some((row: { id: string }) => row.id === testIdentificationRequestId)).toBe(true);
+  });
+
+  it('200s ADMIN/SUPER_ADMIN too', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/product-requests/admin')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/product-requests/admin')
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .expect(200);
+  });
+});
+
+describe('GET /product-requests/admin/:id — RBAC and shape (full event trail)', () => {
+  it('401s with no token, 403s with CUSTOMER, 200s with SALES_OPERATOR', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/v1/product-requests/admin/${testIdentificationRequestId}`)
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/product-requests/admin/${testIdentificationRequestId}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/product-requests/admin/${testIdentificationRequestId}`)
+      .set('Authorization', `Bearer ${salesOperatorToken}`)
+      .expect(200);
+
+    expect(response.body.id).toBe(testIdentificationRequestId);
+    expect(Array.isArray(response.body.events)).toBe(true);
+  });
+});
+
+describe('PATCH /product-requests/admin/:id — RBAC, persistence, identifiedProductId validation and RequestEvent trail', () => {
+  it('401s with no token, 403s with CUSTOMER, 403s with MANUFACTURING_OPERATOR', async () => {
+    await request(app.getHttpServer())
+      .patch(`/api/v1/product-requests/admin/${testIdentificationRequestId}`)
+      .send({ status: 'UNDER_REVIEW' })
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/product-requests/admin/${testIdentificationRequestId}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ status: 'UNDER_REVIEW' })
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/product-requests/admin/${testIdentificationRequestId}`)
+      .set('Authorization', `Bearer ${manufacturingOperatorToken}`)
+      .send({ status: 'UNDER_REVIEW' })
+      .expect(403);
+  });
+
+  it('200s SALES_OPERATOR, persists status/adminResponse, connects a real product, and appends a RequestEvent', async () => {
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/product-requests/admin/${testIdentificationRequestId}`)
+      .set('Authorization', `Bearer ${salesOperatorToken}`)
+      .send({ status: 'IDENTIFIED', adminResponse: 'محصول شناسایی شد.', identifiedProductId: productId })
+      .expect(200);
+
+    expect(response.body.status).toBe('IDENTIFIED');
+    expect(response.body.adminResponse).toBe('محصول شناسایی شد.');
+    expect(response.body.identifiedProduct?.id).toBe(productId);
+    expect(
+      response.body.events.some(
+        (e: { fromStatus: string | null; toStatus: string }) =>
+          e.fromStatus === 'SUBMITTED' && e.toStatus === 'IDENTIFIED',
+      ),
+    ).toBe(true);
+
+    const row = await prisma.productIdentificationRequest.findUniqueOrThrow({
+      where: { id: testIdentificationRequestId },
+    });
+    expect(row.status).toBe('IDENTIFIED');
+    expect(row.identifiedProductId).toBe(productId);
+  });
+
+  it('400s a non-existent identifiedProductId even for an authorized ADMIN', async () => {
+    await request(app.getHttpServer())
+      .patch(`/api/v1/product-requests/admin/${testIdentificationRequestId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ identifiedProductId: 'not-a-real-product-id' })
+      .expect(400);
+  });
+
+  it('400s an invalid status value even for an authorized ADMIN', async () => {
+    await request(app.getHttpServer())
+      .patch(`/api/v1/product-requests/admin/${testIdentificationRequestId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'NOT_A_REAL_STATUS' })
+      .expect(400);
   });
 });
