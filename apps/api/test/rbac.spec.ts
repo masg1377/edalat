@@ -63,6 +63,16 @@ let testOrderId = '';
 let testManufacturingRequestId = '';
 let testIdentificationRequestId = '';
 
+// فاز ۹د fixtures — reviews need real FK-backed rows (Review.userId is a
+// required FK, unlike the fake-`sub` trick most RBAC checks below get away
+// with) plus a real PAID order to exercise the isVerifiedPurchase check.
+let testCustomerToken = '';
+let reviewProductId = '';
+let verifiedPurchaseProductId = '';
+let verifiedPurchaseOrderId = '';
+let reviewId = '';
+let verifiedReviewId = '';
+
 beforeAll(async () => {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   app = moduleRef.createNestApplication();
@@ -140,6 +150,57 @@ beforeAll(async () => {
     },
   });
   testIdentificationRequestId = testIdentificationRequest.id;
+
+  // فاز ۹د — dedicated products (the shared `productId` fixture above gets
+  // soft-deleted by the "DELETE /products/:id" test earlier in this file,
+  // and reviews shouldn't depend on that ordering) plus a real PAID order so
+  // ReviewsService.create() has something to find for isVerifiedPurchase.
+  const reviewProduct = await prisma.product.create({
+    data: {
+      slug: slug('review-product'),
+      name: `${PREFIX} محصول نظردار`,
+      sku: slug('review-sku'),
+      retailPrice: 80_000,
+    },
+  });
+  reviewProductId = reviewProduct.id;
+
+  const verifiedPurchaseProduct = await prisma.product.create({
+    data: {
+      slug: slug('verified-product'),
+      name: `${PREFIX} محصول خریداری‌شده`,
+      sku: slug('verified-sku'),
+      retailPrice: 120_000,
+    },
+  });
+  verifiedPurchaseProductId = verifiedPurchaseProduct.id;
+
+  const verifiedPurchaseOrder = await prisma.order.create({
+    data: {
+      orderNumber: slug('verified-order').toUpperCase(),
+      userId: testCustomerId,
+      status: 'PAID',
+      subtotal: 120_000,
+      grandTotal: 120_000,
+      items: {
+        create: {
+          productId: verifiedPurchaseProductId,
+          productName: verifiedPurchaseProduct.name,
+          productSku: verifiedPurchaseProduct.sku,
+          purchaseType: 'RETAIL',
+          quantity: 1,
+          unitPrice: 120_000,
+          lineTotal: 120_000,
+        },
+      },
+    },
+  });
+  verifiedPurchaseOrderId = verifiedPurchaseOrder.id;
+
+  testCustomerToken = jwt.sign(
+    { sub: testCustomerId, phone: testCustomer.phone, role: UserRole.CUSTOMER },
+    { expiresIn: '5m' },
+  );
 });
 
 afterAll(async () => {
@@ -154,6 +215,7 @@ afterAll(async () => {
   await prisma.manufacturingRequest.deleteMany({ where: { id: testManufacturingRequestId } });
   await prisma.productIdentificationRequest.deleteMany({ where: { id: testIdentificationRequestId } });
   await prisma.order.deleteMany({ where: { id: testOrderId } });
+  await prisma.order.deleteMany({ where: { id: verifiedPurchaseOrderId } });
   await prisma.user.deleteMany({ where: { id: testCustomerId } });
   await prisma.productVehicleCompatibility.deleteMany({ where: { productId } });
   await prisma.product.deleteMany({ where: { slug: { startsWith: PREFIX } } });
@@ -833,5 +895,227 @@ describe('PATCH /product-requests/admin/:id — RBAC, persistence, identifiedPro
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ status: 'NOT_A_REAL_STATUS' })
       .expect(400);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* فاز ۹د — POST /reviews, GET /products/:id/reviews, GET /reviews/mine, */
+/* GET/PATCH /reviews/admin/:id (PRD §36/§50/§56 — @Roles(ADMIN,        */
+/* CONTENT_MANAGER, SUPER_ADMIN) on the admin routes)                   */
+/* ------------------------------------------------------------------ */
+
+describe('POST /reviews — auth, validation and duplicate handling', () => {
+  it('401s with no token', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/reviews')
+      .send({ productId: reviewProductId, rating: 5 })
+      .expect(401);
+  });
+
+  it('400s a rating outside 1..5', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/reviews')
+      .set('Authorization', `Bearer ${testCustomerToken}`)
+      .send({ productId: reviewProductId, rating: 6 })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/reviews')
+      .set('Authorization', `Bearer ${testCustomerToken}`)
+      .send({ productId: reviewProductId, rating: 0 })
+      .expect(400);
+  });
+
+  it('201s a real CUSTOMER and computes isVerifiedPurchase:true from a PAID order on that product', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/reviews')
+      .set('Authorization', `Bearer ${testCustomerToken}`)
+      .send({
+        productId: verifiedPurchaseProductId,
+        rating: 5,
+        title: 'خیلی خوب',
+        comment: 'دقیقاً همون بود که نیاز داشتم.',
+      })
+      .expect(201);
+
+    expect(response.body.status).toBe('PENDING');
+    expect(response.body.isVerifiedPurchase).toBe(true);
+    verifiedReviewId = response.body.id;
+  });
+
+  it('isVerifiedPurchase is false without a PAID/DELIVERED order for that product', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/reviews')
+      .set('Authorization', `Bearer ${testCustomerToken}`)
+      .send({ productId: reviewProductId, rating: 4 })
+      .expect(201);
+
+    expect(response.body.isVerifiedPurchase).toBe(false);
+    reviewId = response.body.id;
+  });
+
+  it('409s a duplicate review for the same (user, product) with a clear message, not a raw Prisma error', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/reviews')
+      .set('Authorization', `Bearer ${testCustomerToken}`)
+      .send({ productId: reviewProductId, rating: 3 })
+      .expect(409);
+
+    expect(typeof response.body.message).toBe('string');
+    expect(response.body.message).not.toMatch(/prisma/i);
+  });
+});
+
+describe('GET /reviews/mine — auth and shape', () => {
+  it('401s with no token', async () => {
+    await request(app.getHttpServer()).get('/api/v1/reviews/mine').expect(401);
+  });
+
+  it("200s and lists the reviewer's own review regardless of status (still PENDING here)", async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/reviews/mine')
+      .set('Authorization', `Bearer ${testCustomerToken}`)
+      .expect(200);
+
+    expect(Array.isArray(response.body)).toBe(true);
+    expect(
+      response.body.some(
+        (row: { id: string; status: string }) => row.id === reviewId && row.status === 'PENDING',
+      ),
+    ).toBe(true);
+  });
+});
+
+describe('GET /products/:id/reviews — public, APPROVED-only, and the rating cache it feeds', () => {
+  it('200s with no token and excludes the still-PENDING review', async () => {
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/products/${reviewProductId}/reviews`)
+      .expect(200);
+
+    expect(response.body.items.some((row: { id: string }) => row.id === reviewId)).toBe(false);
+    expect(response.body.averageRating).toBe(0);
+  });
+
+  it('includes the review once an ADMIN approves it, and Product.ratingAverage/ratingCount resync', async () => {
+    await request(app.getHttpServer())
+      .patch(`/api/v1/reviews/admin/${reviewId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'APPROVED' })
+      .expect(200);
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/products/${reviewProductId}/reviews`)
+      .expect(200);
+
+    expect(response.body.items.some((row: { id: string }) => row.id === reviewId)).toBe(true);
+    expect(response.body.averageRating).toBe(4);
+
+    const product = await prisma.product.findUniqueOrThrow({ where: { id: reviewProductId } });
+    expect(product.ratingCount).toBe(1);
+    expect(product.ratingAverage).toBe(4);
+  });
+});
+
+describe('GET /reviews/admin — RBAC', () => {
+  it('401s with no token, 403s with CUSTOMER, 403s with SALES_OPERATOR (not a review-managing role)', async () => {
+    await request(app.getHttpServer()).get('/api/v1/reviews/admin').expect(401);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/reviews/admin')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/reviews/admin')
+      .set('Authorization', `Bearer ${salesOperatorToken}`)
+      .expect(403);
+  });
+
+  it('200s ADMIN, includes pagination + stats, and also allows CONTENT_MANAGER (PRD §51/§56)', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/reviews/admin')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(response.body.items.some((row: { id: string }) => row.id === reviewId)).toBe(true);
+    expect(response.body.pagination).toBeDefined();
+    expect(response.body.stats.byStatus).toBeDefined();
+
+    await request(app.getHttpServer())
+      .get('/api/v1/reviews/admin')
+      .set('Authorization', `Bearer ${contentManagerToken}`)
+      .expect(200);
+  });
+
+  it('filters by status', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/reviews/admin?status=PENDING')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(
+      response.body.items.every((row: { status: string }) => row.status === 'PENDING'),
+    ).toBe(true);
+    expect(response.body.items.some((row: { id: string }) => row.id === verifiedReviewId)).toBe(true);
+  });
+});
+
+describe('PATCH /reviews/admin/:id — RBAC, persistence and product rating resync', () => {
+  it('401s with no token, 403s with CUSTOMER, 403s with MANUFACTURING_OPERATOR', async () => {
+    await request(app.getHttpServer())
+      .patch(`/api/v1/reviews/admin/${verifiedReviewId}`)
+      .send({ status: 'REJECTED' })
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/reviews/admin/${verifiedReviewId}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ status: 'REJECTED' })
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/reviews/admin/${verifiedReviewId}`)
+      .set('Authorization', `Bearer ${manufacturingOperatorToken}`)
+      .send({ status: 'REJECTED' })
+      .expect(403);
+  });
+
+  it('200s CONTENT_MANAGER and persists status + adminNote', async () => {
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/reviews/admin/${verifiedReviewId}`)
+      .set('Authorization', `Bearer ${contentManagerToken}`)
+      .send({ status: 'REJECTED', adminNote: 'محتوای نامرتبط با محصول' })
+      .expect(200);
+
+    expect(response.body.status).toBe('REJECTED');
+    expect(response.body.adminNote).toBe('محتوای نامرتبط با محصول');
+
+    const row = await prisma.review.findUniqueOrThrow({ where: { id: verifiedReviewId } });
+    expect(row.status).toBe('REJECTED');
+  });
+
+  it('hiding a previously-approved review removes it from the public list and the product rating resets to 0', async () => {
+    await request(app.getHttpServer())
+      .patch(`/api/v1/reviews/admin/${reviewId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'HIDDEN' })
+      .expect(200);
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/products/${reviewProductId}/reviews`)
+      .expect(200);
+    expect(response.body.items.length).toBe(0);
+
+    const product = await prisma.product.findUniqueOrThrow({ where: { id: reviewProductId } });
+    expect(product.ratingCount).toBe(0);
+    expect(product.ratingAverage).toBe(0);
+  });
+
+  it('404s a non-existent review id even for an authorized ADMIN', async () => {
+    await request(app.getHttpServer())
+      .patch('/api/v1/reviews/admin/not-a-real-review-id')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'APPROVED' })
+      .expect(404);
   });
 });

@@ -4,6 +4,7 @@ import type {
   ManufacturingStatus,
   OrderStatus,
   PurchaseType,
+  ReviewStatus,
   SearchMatchKind,
   SuggestionKind,
   TransmissionType,
@@ -399,6 +400,42 @@ export interface ManufacturingRequestSummary {
   productType: string;
   quantity: number;
   quotedUnitPrice: number | null;
+  createdAt: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Reviews (PRD §36/§50 — فاز ۹د)                                       */
+/* ------------------------------------------------------------------ */
+
+/** One APPROVED review, as shown publicly on Product Detail (PRD §36). */
+export interface ProductReviewSummary {
+  id: string;
+  rating: number;
+  title: string | null;
+  comment: string | null;
+  isVerifiedPurchase: boolean;
+  /** Reviewer's display name, already defaulted to "کاربر عدالت فیلتر" server-side. */
+  userName: string;
+  createdAt: string;
+}
+
+export interface ProductReviewsResponse extends Paginated<ProductReviewSummary> {
+  /** Average of APPROVED ratings only — 0 when there are none yet. */
+  averageRating: number;
+}
+
+/** Dashboard → "نظرات من" (PRD §31/§36) — every status, not just APPROVED. */
+export interface MyReviewSummary {
+  id: string;
+  productId: string;
+  productSlug: string;
+  productName: string;
+  productImageUrl: string | null;
+  rating: number;
+  title: string | null;
+  comment: string | null;
+  status: ReviewStatus;
+  adminNote: string | null;
   createdAt: string;
 }
 

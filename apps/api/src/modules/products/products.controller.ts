@@ -15,6 +15,7 @@ import { PurchaseType, UserRole } from '@edalat/shared';
 
 import { JwtAuthGuard, Roles, RolesGuard } from '../../common/auth.decorators';
 import { PricingService } from '../pricing/pricing.service';
+import { ProductReviewQueryDto, ReviewsService } from '../reviews/reviews.module';
 import { CatalogQueryDto } from './dto/catalog-query.dto';
 import {
   CreateCompatibilityDto,
@@ -30,6 +31,7 @@ export class ProductsController {
   constructor(
     private readonly products: ProductsService,
     private readonly pricing: PricingService,
+    private readonly reviews: ReviewsService,
   ) {}
 
   @Get()
@@ -66,6 +68,14 @@ export class ProductsController {
   @Get(':id/vehicles')
   vehicles(@Param('id') id: string) {
     return this.products.vehiclesFor(id);
+  }
+
+  /** PRD §36/فاز ۹د — Product Detail "نظرات کاربران" tab: APPROVED reviews only, public. */
+  @Get(':id/reviews')
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  productReviews(@Param('id') id: string, @Query() dto: ProductReviewQueryDto) {
+    return this.reviews.listForProduct(id, dto);
   }
 
   /** PRD §20 */
