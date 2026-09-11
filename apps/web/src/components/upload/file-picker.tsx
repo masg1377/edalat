@@ -75,8 +75,15 @@ export function FilePicker({
         continue;
       }
       try {
-        const dataUrl = await toDataUrl(file);
-        accepted.push({ name: file.name, dataUrl, isImage: file.type.startsWith('image/') });
+        const isImage = file.type.startsWith('image/');
+        // فاز اصلاحی — باگ ۲ (بخش ب): قبل از تبدیل به data URL، تصاویر را
+        // با canvas به WebP فشرده می‌کنیم تا هم حجم واقعی ارسالی کوچک‌تر
+        // شود و هم بدنهٔ JSON زیر سقف جدید بک‌اند (apps/api/src/main.ts)
+        // بماند. PDF (در DOCUMENT_TYPES) دست‌نخورده می‌ماند — فقط تصاویر.
+        // اگر فشرده‌سازی به هر دلیلی (مرورگر قدیمی/خطای canvas) شکست
+        // بخورد، به فایل خام fallback می‌کنیم تا کل آپلود نشکند.
+        const dataUrl = isImage ? await compressImageToDataUrl(file) : await toDataUrl(file);
+        accepted.push({ name: file.name, dataUrl, isImage });
       } catch {
         setError('خواندن فایل ناموفق بود.');
       }
@@ -172,4 +179,62 @@ function toDataUrl(file: File): Promise<string> {
     reader.onerror = () => reject(new Error('خواندن فایل ناموفق بود.'));
     reader.readAsDataURL(file);
   });
+}
+
+/** Largest side (px) an image is downscaled to before compression — larger images are shrunk, smaller ones are left alone. */
+const MAX_IMAGE_DIMENSION = 1600;
+const IMAGE_COMPRESSION_QUALITY = 0.8;
+
+function loadImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('بارگذاری تصویر ناموفق بود.'));
+    };
+    img.src = url;
+  });
+}
+
+/**
+ * Resizes an image to at most `MAX_IMAGE_DIMENSION` on its longest side and
+ * re-encodes it as WebP at `IMAGE_COMPRESSION_QUALITY` via `<canvas>` — no
+ * extra library needed. Falls back to the original file's data URL if
+ * anything here throws (old browser without WebP/canvas support, a corrupt
+ * image, canvas returning a null blob, …) so a failed compression never
+ * blocks the upload.
+ */
+async function compressImageToDataUrl(file: File): Promise<string> {
+  try {
+    const img = await loadImage(file);
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(img.naturalWidth, img.naturalHeight));
+    const width = Math.max(1, Math.round(img.naturalWidth * scale));
+    const height = Math.max(1, Math.round(img.naturalHeight * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('canvas 2d context در دسترس نیست.');
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, 'image/webp', IMAGE_COMPRESSION_QUALITY),
+    );
+    if (!blob) throw new Error('فشرده‌سازی تصویر ناموفق بود.');
+
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error('خواندن تصویر فشرده‌شده ناموفق بود.'));
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return toDataUrl(file);
+  }
 }
