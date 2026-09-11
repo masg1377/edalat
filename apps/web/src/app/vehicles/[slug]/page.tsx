@@ -9,6 +9,7 @@ import { Header } from '@/components/layout/header';
 import { ButtonLink } from '@/components/ui/button';
 import { CarIcon } from '@/components/ui/icons';
 import { ProductCard } from '@/components/product/product-card';
+import { SaveVehicleButton } from '@/components/vehicle/save-vehicle-button';
 import { VehicleJumpSelector } from '@/components/vehicle/vehicle-jump-selector';
 import type { VehicleBrandOption } from '@/components/vehicle/vehicle-selector';
 import { ApiError, api, safe } from '@/lib/api';
@@ -140,11 +141,14 @@ async function VehicleDetailView({ vehicle }: { vehicle: VehicleDetail }) {
           </ol>
         </nav>
 
-        <div className="flex items-center gap-3">
-          <span className="grid size-12 shrink-0 place-items-center rounded-full bg-surface text-ink-500">
-            <CarIcon className="size-6" />
-          </span>
-          <h1 className="text-xl font-black leading-relaxed text-ink-800 md:text-2xl">{title}</h1>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="grid size-12 shrink-0 place-items-center rounded-full bg-surface text-ink-500">
+              <CarIcon className="size-6" />
+            </span>
+            <h1 className="text-xl font-black leading-relaxed text-ink-800 md:text-2xl">{title}</h1>
+          </div>
+          <SaveVehicleButton vehicleId={vehicle.id} />
         </div>
 
         <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_360px]">

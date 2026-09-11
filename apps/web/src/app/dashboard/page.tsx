@@ -7,6 +7,7 @@ import type {
   ManufacturingRequestSummary,
   OrderSummary,
   ProductIdentificationRequestSummary,
+  VehicleSummary,
 } from '@edalat/shared';
 import { formatToman, toPersianDigits } from '@edalat/shared';
 
@@ -23,11 +24,12 @@ import {
 } from '@/lib/status-labels';
 
 /** PRD §31 — Dashboard Overview: recent orders + recent request statuses + a
- * small "My Vehicle" call-out (PRD §26/§83 — P1, so a CTA is enough here). */
+ * "خودروی من" section (PRD §26) showing the user's saved vehicles. */
 export default function DashboardOverviewPage() {
   const router = useRouter();
 
   const [orders, setOrders] = useState<OrderSummary[] | null>(null);
+  const [vehicles, setVehicles] = useState<VehicleSummary[] | null>(null);
   const [manufacturing, setManufacturing] = useState<ManufacturingRequestSummary[] | null>(null);
   const [imageRequests, setImageRequests] = useState<ProductIdentificationRequestSummary[] | null>(
     null,
@@ -38,14 +40,16 @@ export default function DashboardOverviewPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [ordersData, manufacturingData, imageData] = await Promise.all([
+      const [ordersData, manufacturingData, imageData, vehiclesData] = await Promise.all([
         authFetch<OrderSummary[]>('/orders'),
         authFetch<ManufacturingRequestSummary[]>('/manufacturing/requests'),
         authFetch<ProductIdentificationRequestSummary[]>('/product-requests'),
+        authFetch<VehicleSummary[]>('/saved-vehicles'),
       ]);
       setOrders(ordersData);
       setManufacturing(manufacturingData);
       setImageRequests(imageData);
+      setVehicles(vehiclesData);
       setError(null);
     } catch (err) {
       if (err instanceof AuthRequiredError) {
@@ -87,29 +91,67 @@ export default function DashboardOverviewPage() {
   }
 
   const recentOrders = (orders ?? []).slice(0, 3);
+  const recentVehicles = (vehicles ?? []).slice(0, 3);
   const recentManufacturing = (manufacturing ?? []).slice(0, 3);
   const recentImageRequests = (imageRequests ?? []).slice(0, 3);
 
   return (
     <div className="space-y-6">
-      {/* My Vehicle CTA — PRD §26 is P1; a full saved-vehicle CRUD is out of
-          scope for this phase, this is just a doorway to the Vehicle KB. */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-card bg-sand p-6 text-ink-800">
-        <div className="flex items-center gap-4">
-          <span className="grid size-12 shrink-0 place-items-center rounded-full bg-white">
-            <CarIcon className="size-6" aria-hidden />
-          </span>
-          <div>
-            <p className="font-bold">خودروی من</p>
-            <p className="mt-1 text-xs leading-6 text-ink-500">
-              به‌زودی: ذخیره خودروهای خودتان برای پیشنهاد سریع‌تر قطعات مناسب.
-            </p>
-          </div>
+      {/* خودروی من — PRD §26. Fed by SaveVehicleButton on the vehicle
+          detail page; `/dashboard/my-vehicles` has the full list + removal. */}
+      <section className="rounded-card bg-surface p-6 md:p-7">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-bold text-ink-800">خودروی من</h2>
+          <Link
+            href="/dashboard/my-vehicles"
+            className="text-xs font-bold text-ink-600 underline-offset-4 hover:underline"
+          >
+            مشاهده همه
+          </Link>
         </div>
-        <ButtonLink href="/vehicles" variant="dark" size="sm">
-          مشاهده اطلاعات خودرو
-        </ButtonLink>
-      </div>
+
+        {recentVehicles.length === 0 ? (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-xl bg-sand p-5">
+            <div className="flex items-center gap-4">
+              <span className="grid size-12 shrink-0 place-items-center rounded-full bg-white">
+                <CarIcon className="size-6" aria-hidden />
+              </span>
+              <p className="text-sm text-ink-600">هنوز خودرویی ذخیره نکرده‌اید.</p>
+            </div>
+            <ButtonLink href="/vehicles" variant="dark" size="sm">
+              مشاهده اطلاعات خودرو
+            </ButtonLink>
+          </div>
+        ) : (
+          <ul className="mt-5 divide-y divide-ink-200">
+            {recentVehicles.map((vehicle) => {
+              const title = [vehicle.brand.name, vehicle.model, vehicle.generation]
+                .filter(Boolean)
+                .join(' ');
+              return (
+                <li key={vehicle.id}>
+                  <Link
+                    href={`/vehicles/${vehicle.slug}`}
+                    className="flex flex-wrap items-center justify-between gap-3 py-4 first:pt-0 last:pb-0"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-soft text-ink-500">
+                        <CarIcon className="size-5" aria-hidden />
+                      </span>
+                      <p className="font-bold text-ink-800">{title}</p>
+                    </div>
+                    {vehicle.yearFrom && (
+                      <span className="ltr-num rounded-pill bg-surface-soft px-3 py-1 text-xs font-bold text-ink-600">
+                        {vehicle.yearTo ? `${vehicle.yearFrom}–${vehicle.yearTo}` : `${vehicle.yearFrom}+`}
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <section className="rounded-card bg-surface p-6 md:p-7">
         <div className="flex items-center justify-between gap-3">

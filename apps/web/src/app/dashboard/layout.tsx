@@ -15,6 +15,7 @@ const TABS: Array<{ href: string; label: string; exact?: boolean }> = [
   { href: '/dashboard/manufacturing-requests', label: 'درخواست‌های تولید' },
   { href: '/dashboard/requests', label: 'درخواست‌های تصویری' },
   { href: '/dashboard/favorites', label: 'علاقه‌مندی‌ها' },
+  { href: '/dashboard/my-vehicles', label: 'خودروهای من' },
   { href: '/dashboard/reviews', label: 'نظرات من' },
   { href: '/dashboard/addresses', label: 'آدرس‌ها' },
   { href: '/dashboard/profile', label: 'پروفایل' },
@@ -34,8 +35,8 @@ const TABS: Array<{ href: string; label: string; exact?: boolean }> = [
  * `GET /reviews/mine` endpoint and `/dashboard/reviews`, so it's a normal
  * tab now like the others above.
  *
- * "خودروی من" (My Vehicle, PRD §26) is P1 and gets only a small CTA on the
- * Overview tab, not a tab of its own — same call as phase 4.
+ * "خودروهای من" (My Vehicle, PRD §26) has its own tab + CRUD as of this
+ * phase — Overview still shows a small preview, this tab is the full list.
  *
  * فاز اصلاحی — باگ ۱: تا این فاز هیچ دکمهٔ «خروج از حساب» در فروشگاه وجود
  * نداشت (فقط `authFetch` هنگام نامعتبر شدن refresh token به‌صورت خودکار
