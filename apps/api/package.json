@@ -14,7 +14,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node prisma/seed.ts",
-    "test": "jest"
+    "test": "jest --runInBand"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
@@ -61,6 +61,7 @@
     "typescript-eslint": "^8.67.0"
   },
   "jest": {
+    "//": "test:runInBand -- integration specs (test/*.spec.ts) all connect to one shared real Postgres instance (no per-file DB/schema isolation), so Jest's default parallel workers can race against each other; we observed this cause an intermittent failure in rbac.spec.ts. Running in-band removes that race. This makes the suite slower, which is acceptable for now since this project has no CI yet and tests are run manually.",
     "moduleFileExtensions": [
       "js",
       "json",
