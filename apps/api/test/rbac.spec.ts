@@ -628,6 +628,142 @@ describe('PATCH /users/admin/:id — RBAC and persistence (PRD §51 role/isActiv
 });
 
 /* ------------------------------------------------------------------ */
+/* فاز اصلاحی — POST /manufacturing/requests و POST /product-requests   */
+/* باید برای مهمان باز بمانند (PRD §88 — یک Lead نباید پشت لاگین قفل    */
+/* شود)، اما وقتی کاربر لاگین است OptionalJwtAuthGuard باید userId را   */
+/* از توکن استخراج کند تا GET (بدون /admin) همان درخواست را برای صاحبش  */
+/* برگرداند — این دقیقاً باگ گزارش‌شده («درخواست در پنل کاربری دیده     */
+/* نمی‌شود») است: بدون Guard، request.user همیشه undefined بود.         */
+/* ------------------------------------------------------------------ */
+
+describe('POST /manufacturing/requests & POST /product-requests — optional auth (PRD §88 + bug fix)', () => {
+  const manufacturingPayload = {
+    contactName: `${PREFIX} مشتری آزمایش`,
+    phone: '09120000099',
+    brandName: `${PREFIX} برند آزمایش`,
+    productType: 'فیلتر روغن',
+    quantity: 10,
+  };
+
+  const productRequestPayload = {
+    images: ['https://example.com/optional-auth-fixture.jpg'],
+    possibleName: `${PREFIX} قطعه آزمایش`,
+  };
+
+  const createdManufacturingIds: string[] = [];
+  const createdProductRequestIds: string[] = [];
+
+  afterAll(async () => {
+    if (createdManufacturingIds.length > 0) {
+      await prisma.requestEvent.deleteMany({
+        where: { manufacturingRequestId: { in: createdManufacturingIds } },
+      });
+      await prisma.manufacturingRequest.deleteMany({ where: { id: { in: createdManufacturingIds } } });
+    }
+    if (createdProductRequestIds.length > 0) {
+      await prisma.requestEvent.deleteMany({
+        where: { identificationRequestId: { in: createdProductRequestIds } },
+      });
+      await prisma.productIdentificationRequest.deleteMany({
+        where: { id: { in: createdProductRequestIds } },
+      });
+    }
+  });
+
+  it('guest POST /manufacturing/requests (no Authorization header) still 201s with userId: null — must not break the guest lead flow', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/manufacturing/requests')
+      .send(manufacturingPayload)
+      .expect(201);
+    createdManufacturingIds.push(response.body.id);
+
+    const row = await prisma.manufacturingRequest.findUniqueOrThrow({ where: { id: response.body.id } });
+    expect(row.userId).toBeNull();
+  });
+
+  it('logged-in POST /manufacturing/requests attaches userId, and GET /manufacturing/requests then returns it to that user (the reported bug)', async () => {
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/manufacturing/requests')
+      .set('Authorization', `Bearer ${testCustomerToken}`)
+      .send(manufacturingPayload)
+      .expect(201);
+    createdManufacturingIds.push(createResponse.body.id);
+
+    const row = await prisma.manufacturingRequest.findUniqueOrThrow({
+      where: { id: createResponse.body.id },
+    });
+    expect(row.userId).toBe(testCustomerId);
+
+    const listResponse = await request(app.getHttpServer())
+      .get('/api/v1/manufacturing/requests')
+      .set('Authorization', `Bearer ${testCustomerToken}`)
+      .expect(200);
+
+    expect(listResponse.body.some((r: { id: string }) => r.id === createResponse.body.id)).toBe(true);
+  });
+
+  it('POST /manufacturing/requests with an invalid/expired token still 201s as a guest (userId: null), not 401', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/manufacturing/requests')
+      .set('Authorization', 'Bearer not-a-real-token')
+      .send(manufacturingPayload)
+      .expect(201);
+    createdManufacturingIds.push(response.body.id);
+
+    const row = await prisma.manufacturingRequest.findUniqueOrThrow({ where: { id: response.body.id } });
+    expect(row.userId).toBeNull();
+  });
+
+  it('guest POST /product-requests (no Authorization header) still 201s with userId: null — must not break the guest lead flow', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/product-requests')
+      .send(productRequestPayload)
+      .expect(201);
+    createdProductRequestIds.push(response.body.id);
+
+    const row = await prisma.productIdentificationRequest.findUniqueOrThrow({
+      where: { id: response.body.id },
+    });
+    expect(row.userId).toBeNull();
+  });
+
+  it('logged-in POST /product-requests attaches userId, and GET /product-requests then returns it to that user (the reported bug)', async () => {
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/product-requests')
+      .set('Authorization', `Bearer ${testCustomerToken}`)
+      .send(productRequestPayload)
+      .expect(201);
+    createdProductRequestIds.push(createResponse.body.id);
+
+    const row = await prisma.productIdentificationRequest.findUniqueOrThrow({
+      where: { id: createResponse.body.id },
+    });
+    expect(row.userId).toBe(testCustomerId);
+
+    const listResponse = await request(app.getHttpServer())
+      .get('/api/v1/product-requests')
+      .set('Authorization', `Bearer ${testCustomerToken}`)
+      .expect(200);
+
+    expect(listResponse.body.some((r: { id: string }) => r.id === createResponse.body.id)).toBe(true);
+  });
+
+  it('POST /product-requests with an invalid/expired token still 201s as a guest (userId: null), not 401', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/product-requests')
+      .set('Authorization', 'Bearer not-a-real-token')
+      .send(productRequestPayload)
+      .expect(201);
+    createdProductRequestIds.push(response.body.id);
+
+    const row = await prisma.productIdentificationRequest.findUniqueOrThrow({
+      where: { id: response.body.id },
+    });
+    expect(row.userId).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------ */
 /* فاز ۹ج — GET /manufacturing/requests/admin,                         */
 /* GET/PATCH /manufacturing/requests/admin/:id                         */
 /* (PRD §55, @Roles(ADMIN, MANUFACTURING_OPERATOR, SUPER_ADMIN))       */

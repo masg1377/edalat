@@ -36,7 +36,14 @@ import {
   buildPagination,
 } from '@edalat/shared';
 
-import { CurrentUser, JwtAuthGuard, Roles, RolesGuard, type RequestUser } from '../../common/auth.decorators';
+import {
+  CurrentUser,
+  JwtAuthGuard,
+  OptionalJwtAuthGuard,
+  Roles,
+  RolesGuard,
+  type RequestUser,
+} from '../../common/auth.decorators';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /** Mirrors the six steps of the multi-step form in PRD §28. */
@@ -296,7 +303,13 @@ export class ManufacturingService {
 export class ManufacturingController {
   constructor(private readonly manufacturing: ManufacturingService) {}
 
-  /** Open to guests — a lead should never be blocked behind a login. */
+  /**
+   * Open to guests — a lead should never be blocked behind a login (PRD §88).
+   * `OptionalJwtAuthGuard` still decodes a valid token when one is sent, so a
+   * logged-in submitter's request shows up in their own dashboard instead of
+   * always being recorded as anonymous.
+   */
+  @UseGuards(OptionalJwtAuthGuard)
   @Post('requests')
   create(@Body() dto: CreateManufacturingRequestDto, @CurrentUser() user?: RequestUser) {
     return this.manufacturing.create(dto, user?.id);

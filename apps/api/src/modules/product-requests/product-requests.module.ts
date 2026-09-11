@@ -35,7 +35,14 @@ import {
   buildPagination,
 } from '@edalat/shared';
 
-import { CurrentUser, JwtAuthGuard, Roles, RolesGuard, type RequestUser } from '../../common/auth.decorators';
+import {
+  CurrentUser,
+  JwtAuthGuard,
+  OptionalJwtAuthGuard,
+  Roles,
+  RolesGuard,
+  type RequestUser,
+} from '../../common/auth.decorators';
 import { mapProductSummary, productSummarySelect } from '../../common/mappers';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -282,7 +289,11 @@ export class ProductRequestsController {
   /**
    * Guests may submit. PRD §88 — a failed search must never be a dead end, and
    * forcing a login here is exactly the kind of dead end that loses the lead.
+   * `OptionalJwtAuthGuard` still decodes a valid token when one is sent, so a
+   * logged-in submitter's request shows up in their own dashboard instead of
+   * always being recorded as anonymous.
    */
+  @UseGuards(OptionalJwtAuthGuard)
   @Post()
   create(@Body() dto: CreateIdentificationRequestDto, @CurrentUser() user?: RequestUser) {
     return this.requests.create(dto, user?.id);

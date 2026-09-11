@@ -17,6 +17,22 @@ export interface RequestUser {
 
 export class JwtAuthGuard extends AuthGuard('jwt') {}
 
+/**
+ * Like `JwtAuthGuard`, but never blocks the request: on a missing, invalid
+ * or expired token it just leaves `request.user` unset instead of 401ing.
+ *
+ * For endpoints that must stay open to guests (PRD §88 — a lead should never
+ * be a dead end behind a login) but should still record the owner when the
+ * submitter happens to be logged in, e.g. `ManufacturingController.create`
+ * and `ProductRequestsController.create`.
+ */
+@Injectable()
+export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
+  handleRequest<TUser = RequestUser>(_err: unknown, user: TUser | false): TUser | undefined {
+    return user || undefined;
+  }
+}
+
 export const ROLES_KEY = 'roles';
 
 /** PRD §51 — role-based access control on admin and staff endpoints. */
