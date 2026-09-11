@@ -16,6 +16,7 @@ import { PricingModule } from './modules/pricing/pricing.module';
 import { ProductRequestsModule } from './modules/product-requests/product-requests.module';
 import { ProductsModule } from './modules/products/products.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
+import { SavedVehiclesModule } from './modules/saved-vehicles/saved-vehicles.module';
 import { SearchModule } from './modules/search/search.module';
 import { UsersModule } from './modules/users/users.module';
 import { VehiclesModule } from './modules/vehicles/vehicles.module';
@@ -41,6 +42,7 @@ import { PrismaModule } from './prisma/prisma.module';
     ManufacturingModule,
     ProductRequestsModule,
     FavoritesModule,
+    SavedVehiclesModule,
     ReviewsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
