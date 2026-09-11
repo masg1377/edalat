@@ -1,7 +1,7 @@
 'use client'
 
 // React Imports
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 
 // Next Imports
@@ -18,11 +18,17 @@ import ClickAwayListener from '@mui/material/ClickAwayListener'
 import MenuList from '@mui/material/MenuList'
 import Typography from '@mui/material/Typography'
 import Divider from '@mui/material/Divider'
-import MenuItem from '@mui/material/MenuItem'
 import Button from '@mui/material/Button'
+
+// Type Imports
+import type { UserRole } from '@edalat/shared'
 
 // Hook Imports
 import { useSettings } from '@core/hooks/useSettings'
+
+// Lib Imports
+import { decodeAccessToken, getSession, logout } from '@/lib/auth'
+import { USER_ROLE_LABELS } from '@/lib/user-role'
 
 // Styled component for badge content
 const BadgeContentSpan = styled('span')({
@@ -34,9 +40,22 @@ const BadgeContentSpan = styled('span')({
   boxShadow: '0 0 0 2px var(--mui-palette-background-paper)'
 })
 
+/**
+ * فاز اصلاحی — باگ ۳: این کامپوننت دقیقاً همان دموی Vuexy بود، دست‌نخورده —
+ * نام/ایمیل هاردکد («John Doe» / «admin@vuexy.com»)، آیتم‌های منو
+ * (My Profile/Settings/Pricing/FAQ) به هیچ مسیر واقعی وصل نبودند (فقط منو
+ * را می‌بستند)، و مهم‌تر از همه Logout واقعاً clearSession()/logout() را
+ * صدا نمی‌زد — فقط router.push('/login') بود، یعنی توکن‌ها در localStorage
+ * باقی می‌ماندند. اکنون: نام/ایمیل با شمارهٔ موبایل و برچسب فارسی نقش
+ * کاربر واقعی (از توکن، طبق همان الگوی PrivateLayout/Login.tsx) جایگزین
+ * شد، آیتم‌های بدون مقصد واقعی حذف شدند (طبق تصمیم فاز ۹ه برای
+ * Congratulations/Transactions — PRD Rule 7/§77)، و Logout از
+ * apps/admin/src/lib/auth.ts استفاده می‌کند.
+ */
 const UserDropdown = () => {
   // States
   const [open, setOpen] = useState(false)
+  const [account, setAccount] = useState<{ phone: string; role: UserRole | null } | null>(null)
 
   // Refs
   const anchorRef = useRef<HTMLDivElement>(null)
@@ -45,6 +64,17 @@ const UserDropdown = () => {
   const router = useRouter()
 
   const { settings } = useSettings()
+
+  useEffect(() => {
+    const session = getSession()
+
+    if (!session) return
+    const payload = decodeAccessToken(session.accessToken)
+
+    if (payload) {
+      setAccount({ phone: payload.phone, role: (payload.role as UserRole) ?? null })
+    }
+  }, [])
 
   const handleDropdownOpen = () => {
     !open ? setOpen(true) : setOpen(false)
@@ -63,9 +93,12 @@ const UserDropdown = () => {
   }
 
   const handleUserLogout = async () => {
-    // Redirect to login page
+    await logout()
     router.push('/login')
   }
+
+  const displayName = account?.phone ?? '—'
+  const displayRole = account?.role ? USER_ROLE_LABELS[account.role] : ''
 
   return (
     <>
@@ -78,7 +111,7 @@ const UserDropdown = () => {
       >
         <Avatar
           ref={anchorRef}
-          alt='John Doe'
+          alt={displayName}
           src='/images/avatars/1.png'
           onClick={handleDropdownOpen}
           className='cursor-pointer bs-[38px] is-[38px]'
@@ -103,31 +136,15 @@ const UserDropdown = () => {
               <ClickAwayListener onClickAway={e => handleDropdownClose(e as MouseEvent | TouchEvent)}>
                 <MenuList>
                   <div className='flex items-center plb-2 pli-6 gap-2' tabIndex={-1}>
-                    <Avatar alt='John Doe' src='/images/avatars/1.png' />
+                    <Avatar alt={displayName} src='/images/avatars/1.png' />
                     <div className='flex items-start flex-col'>
-                      <Typography className='font-medium' color='text.primary'>
-                        John Doe
+                      <Typography dir='ltr' className='font-medium ltr-slug' color='text.primary'>
+                        {displayName}
                       </Typography>
-                      <Typography variant='caption'>admin@vuexy.com</Typography>
+                      <Typography variant='caption'>{displayRole}</Typography>
                     </div>
                   </div>
                   <Divider className='mlb-1' />
-                  <MenuItem className='mli-2 gap-3' onClick={e => handleDropdownClose(e)}>
-                    <i className='tabler-user' />
-                    <Typography color='text.primary'>My Profile</Typography>
-                  </MenuItem>
-                  <MenuItem className='mli-2 gap-3' onClick={e => handleDropdownClose(e)}>
-                    <i className='tabler-settings' />
-                    <Typography color='text.primary'>Settings</Typography>
-                  </MenuItem>
-                  <MenuItem className='mli-2 gap-3' onClick={e => handleDropdownClose(e)}>
-                    <i className='tabler-currency-dollar' />
-                    <Typography color='text.primary'>Pricing</Typography>
-                  </MenuItem>
-                  <MenuItem className='mli-2 gap-3' onClick={e => handleDropdownClose(e)}>
-                    <i className='tabler-help-circle' />
-                    <Typography color='text.primary'>FAQ</Typography>
-                  </MenuItem>
                   <div className='flex items-center plb-2 pli-3'>
                     <Button
                       fullWidth
