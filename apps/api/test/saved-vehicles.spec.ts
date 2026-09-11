@@ -101,4 +101,24 @@ describe('SavedVehiclesService', () => {
       saved: false,
     });
   });
+
+  /**
+   * Bug fix (reported by user): the vehicle detail page's save button
+   * showed "not saved" again every time it was revisited, even for a
+   * vehicle that genuinely was saved — it only ever reflected the current
+   * browser session's own clicks. `isSaved()` is what the button now calls
+   * on mount to get the real per-user state. At this point in the suite
+   * (see the tests above, run in order): userA has nothing saved, userB
+   * still has vehicleB saved from the "scopes saved vehicles per user" test.
+   */
+  it('isSaved() reports whether the vehicle is currently saved for that user', async () => {
+    expect(await savedVehicles.isSaved(userAId, vehicleAId)).toEqual({ saved: false });
+    expect(await savedVehicles.isSaved(userBId, vehicleBId)).toEqual({ saved: true });
+
+    await savedVehicles.add(userAId, vehicleAId);
+    expect(await savedVehicles.isSaved(userAId, vehicleAId)).toEqual({ saved: true });
+
+    await savedVehicles.remove(userAId, vehicleAId);
+    expect(await savedVehicles.isSaved(userAId, vehicleAId)).toEqual({ saved: false });
+  });
 });

@@ -38,6 +38,21 @@ export class SavedVehiclesService {
   }
 
   /**
+   * Whether `vehicleId` is currently saved for this user — powers the real
+   * per-user state of `SaveVehicleButton` when the (cached, shared-across-
+   * users) vehicle detail page loads, instead of the button always starting
+   * unfilled. Cheaper than `list()` for this: an existence check on the
+   * `[userId, vehicleId]` unique index, no join into `Vehicle`.
+   */
+  async isSaved(userId: string, vehicleId: string) {
+    const row = await this.prisma.savedVehicle.findUnique({
+      where: { userId_vehicleId: { userId, vehicleId } },
+      select: { id: true },
+    });
+    return { saved: row !== null };
+  }
+
+  /**
    * Idempotent: `upsert` on the `[userId, vehicleId]` unique index just
    * no-ops when the vehicle is already saved — mirrors FavoritesService.add().
    */
@@ -70,6 +85,11 @@ export class SavedVehiclesController {
   @Get()
   list(@CurrentUser() user: RequestUser) {
     return this.savedVehicles.list(user.id);
+  }
+
+  @Get(':vehicleId')
+  isSaved(@CurrentUser() user: RequestUser, @Param('vehicleId') vehicleId: string) {
+    return this.savedVehicles.isSaved(user.id, vehicleId);
   }
 
   @Post(':vehicleId')

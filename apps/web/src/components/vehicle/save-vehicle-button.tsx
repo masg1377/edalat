@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { CarIcon } from '@/components/ui/icons';
 import { authFetch, getSession } from '@/lib/auth';
@@ -18,15 +18,35 @@ interface SaveVehicleButtonProps {
  * instead of `Product` (see `saved-vehicles.module.ts` for the backend
  * mirror of `FavoritesModule`).
  *
- * Same session-only caveat as `FavoriteButton`: the vehicle detail response
- * is cached and shared across users, so it carries no per-user "isSaved"
- * flag — this button starts unfilled and reflects only what happens in the
- * current session. `/dashboard/my-vehicles` (GET /saved-vehicles) is the
- * source of truth for what's actually saved.
+ * The vehicle detail response itself is still cached and shared across
+ * users (`FavoriteButton` has the same constraint), so it carries no
+ * per-user "isSaved" flag baked in. Bug fix: this button used to start
+ * `useState(false)` unconditionally, so a vehicle that genuinely was saved
+ * showed as unsaved every time the detail page was reloaded/revisited —
+ * only the same session that clicked "save" still showed it filled. Now it
+ * fetches its own real state client-side on mount via
+ * `GET /saved-vehicles/:vehicleId`, which keeps the page response cacheable
+ * while still reflecting the truth for a logged-in viewer.
  */
 export function SaveVehicleButton({ vehicleId, className, iconClassName }: SaveVehicleButtonProps) {
   const [saved, setSaved] = useState(false);
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    if (!getSession()) return;
+
+    let cancelled = false;
+    authFetch<{ saved: boolean }>(`/saved-vehicles/${vehicleId}`)
+      .then((result) => {
+        if (!cancelled) setSaved(result.saved);
+      })
+      .catch(() => {
+        /* best-effort — falls back to the unfilled default on failure */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [vehicleId]);
 
   const toggle = async (event: React.MouseEvent) => {
     event.preventDefault();
