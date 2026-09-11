@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 
 import { Footer } from '@/components/layout/footer';
 import { Header } from '@/components/layout/header';
-import { getSession } from '@/lib/auth';
+import { getSession, logout } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 
 const TABS: Array<{ href: string; label: string; exact?: boolean }> = [
@@ -36,11 +36,27 @@ const TABS: Array<{ href: string; label: string; exact?: boolean }> = [
  *
  * "خودروی من" (My Vehicle, PRD §26) is P1 and gets only a small CTA on the
  * Overview tab, not a tab of its own — same call as phase 4.
+ *
+ * فاز اصلاحی — باگ ۱: تا این فاز هیچ دکمهٔ «خروج از حساب» در فروشگاه وجود
+ * نداشت (فقط `authFetch` هنگام نامعتبر شدن refresh token به‌صورت خودکار
+ * session را پاک می‌کرد — نه یک اقدام آگاهانهٔ کاربر). این تب‌بار همان جایی
+ * است که کاربر بعد از لاگین همیشه می‌بیند، پس دکمهٔ خروج زیر لیست تب‌ها
+ * اضافه شد؛ الگو دقیقاً همان `logout()` در apps/admin/src/lib/auth.ts است.
  */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [ready, setReady] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      router.replace('/');
+    }
+  };
 
   useEffect(() => {
     if (!getSession()) {
@@ -92,6 +108,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   {tab.label}
                 </Link>
               ))}
+
+              <button
+                type="button"
+                onClick={() => void handleLogout()}
+                disabled={loggingOut}
+                className="shrink-0 rounded-pill px-4 py-2.5 text-center text-sm font-bold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60 lg:text-start"
+              >
+                {loggingOut ? 'در حال خروج...' : 'خروج از حساب'}
+              </button>
             </nav>
           </aside>
 

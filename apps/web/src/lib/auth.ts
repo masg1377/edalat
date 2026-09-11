@@ -142,6 +142,32 @@ export async function requestOtp(phone: string) {
   return body as { phone: string; ttlSeconds: number; devCode?: string };
 }
 
+/**
+ * Deliberate sign-out.
+ *
+ * Mirrors `apps/admin/src/lib/auth.ts` `logout()` — this function existed
+ * there but had no equivalent here, so the storefront had no way for a user
+ * to actually end their session (only the automatic `authFetch` fallback on
+ * an expired/invalid refresh token cleared it). Clears the local session
+ * immediately, then best-effort tells the server to revoke the refresh
+ * token too; a network failure here must not block sign-out client-side.
+ */
+export async function logout(): Promise<void> {
+  const session = getSession();
+  clearSession();
+  if (!session) return;
+
+  try {
+    await fetch(`${BASE_URL}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: session.refreshToken }),
+    });
+  } catch {
+    /* best-effort; the client-side session is already cleared */
+  }
+}
+
 export async function verifyOtp(phone: string, code: string) {
   const response = await fetch(`${BASE_URL}/auth/otp/verify`, {
     method: 'POST',
