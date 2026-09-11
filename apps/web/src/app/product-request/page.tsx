@@ -7,6 +7,7 @@ import { Footer } from '@/components/layout/footer';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { FilePicker, IMAGE_TYPES, type PickedFile } from '@/components/upload/file-picker';
+import { optionalAuthHeader } from '@/lib/auth';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 
@@ -50,7 +51,7 @@ export default function ProductRequestPage() {
       // FilePicker resolves each file.
       const response = await fetch(`${BASE_URL}/product-requests`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...optionalAuthHeader() },
         body: JSON.stringify({
           images: images.map((image) => image.dataUrl),
           vehicleLabel: form.vehicleLabel || undefined,

@@ -52,6 +52,18 @@ export function clearSession(): void {
   }
 }
 
+/**
+ * Authorization header for endpoints that stay open to guests but should
+ * still record the caller when they happen to be logged in — e.g. the
+ * manufacturing / product-identification lead forms (PRD §88: never gate
+ * these behind a login). Unlike `authFetch`, this never throws: no session
+ * just means an empty header object, so the request goes through as a guest.
+ */
+export function optionalAuthHeader(): Record<string, string> {
+  const session = getSession();
+  return session ? { Authorization: `Bearer ${session.accessToken}` } : {};
+}
+
 export class AuthRequiredError extends Error {
   constructor() {
     super('برای ادامه باید وارد حساب کاربری شوید.');
