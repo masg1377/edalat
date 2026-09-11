@@ -31,6 +31,9 @@ import type { BrandSummary, CategorySummary, VehicleSummary } from '@edalat/shar
 // Component Imports
 import CustomTextField from '@core/components/mui/TextField'
 
+// Upload Imports
+import ImageFilePicker from '@/components/upload/ImageFilePicker'
+
 // Lib Imports
 import {
   adminApi,
@@ -55,7 +58,7 @@ type FormValues = {
   brandId: string
   categoryId: string
   mainImageUrl: string
-  images: string
+  images: string[]
   retailPrice: string
   compareAtPrice: string
   minWholesaleQty: string
@@ -85,7 +88,7 @@ const emptyValues: FormValues = {
   brandId: '',
   categoryId: '',
   mainImageUrl: '',
-  images: '',
+  images: [],
   retailPrice: '',
   compareAtPrice: '',
   minWholesaleQty: '1',
@@ -171,7 +174,7 @@ const ProductAddView = () => {
           brandId: p.brandId ?? '',
           categoryId: p.categoryId ?? '',
           mainImageUrl: p.mainImageUrl ?? '',
-          images: p.images.join(', '),
+          images: p.images,
           retailPrice: String(p.retailPrice),
           compareAtPrice: p.compareAtPrice !== null ? String(p.compareAtPrice) : '',
           minWholesaleQty: String(p.minWholesaleQty),
@@ -226,7 +229,7 @@ return
       ...(data.brandId ? { brandId: data.brandId } : {}),
       ...(data.categoryId ? { categoryId: data.categoryId } : {}),
       ...(data.mainImageUrl.trim() ? { mainImageUrl: data.mainImageUrl.trim() } : {}),
-      images: csvToArray(data.images),
+      images: data.images,
       ...(toNum(data.compareAtPrice) !== undefined ? { compareAtPrice: toNum(data.compareAtPrice) } : {}),
       minWholesaleQty: toNum(data.minWholesaleQty) ?? 1,
       stockQuantity: toNum(data.stockQuantity) ?? 0,
@@ -461,18 +464,24 @@ return
             name='mainImageUrl'
             control={control}
             render={({ field }) => (
-              <CustomTextField {...field} fullWidth label='آدرس تصویر اصلی' inputProps={{ dir: 'ltr' }} />
+              <ImageFilePicker
+                label='تصویر اصلی'
+                value={field.value ? [field.value] : []}
+                onChange={urls => field.onChange(urls[0] ?? '')}
+              />
             )}
           />
           <Controller
             name='images'
             control={control}
             render={({ field }) => (
-              <CustomTextField
-                {...field}
-                fullWidth
-                label='آدرس تصاویر گالری (با کاما جدا کنید)'
-                inputProps={{ dir: 'ltr' }}
+              <ImageFilePicker
+                label='گالری تصاویر'
+                hint='حداکثر ۸ تصویر'
+                value={field.value}
+                onChange={field.onChange}
+                multiple
+                maxFiles={8}
               />
             )}
           />

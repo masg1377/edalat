@@ -22,6 +22,9 @@ import type { CategorySummary } from '@edalat/shared'
 // Components Imports
 import CustomTextField from '@core/components/mui/TextField'
 
+// Upload Imports
+import ImageFilePicker from '@/components/upload/ImageFilePicker'
+
 // Lib Imports
 import { adminApi, ApiError, type CategoryWritePayload } from '@/lib/api'
 import { AuthRequiredError } from '@/lib/auth'
@@ -178,7 +181,11 @@ const AddCategoryDrawer = ({ open, editing, categories, handleClose, onSaved }: 
             name='imageUrl'
             control={control}
             render={({ field }) => (
-              <CustomTextField {...field} fullWidth label='آدرس تصویر' placeholder='https://…' inputProps={{ dir: 'ltr' }} />
+              <ImageFilePicker
+                label='تصویر دسته‌بندی'
+                value={field.value ? [field.value] : []}
+                onChange={urls => field.onChange(urls[0] ?? '')}
+              />
             )}
           />
           <Controller

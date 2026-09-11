@@ -24,6 +24,9 @@ import { FuelType, TransmissionType } from '@edalat/shared'
 // Components Imports
 import CustomTextField from '@core/components/mui/TextField'
 
+// Upload Imports
+import ImageFilePicker from '@/components/upload/ImageFilePicker'
+
 // Lib Imports
 import { adminApi, ApiError, type VehicleWritePayload } from '@/lib/api'
 import { AuthRequiredError } from '@/lib/auth'
@@ -375,7 +378,11 @@ return
             name='imageUrl'
             control={control}
             render={({ field }) => (
-              <CustomTextField {...field} fullWidth label='آدرس تصویر' placeholder='https://…' inputProps={{ dir: 'ltr' }} />
+              <ImageFilePicker
+                label='تصویر خودرو'
+                value={field.value ? [field.value] : []}
+                onChange={urls => field.onChange(urls[0] ?? '')}
+              />
             )}
           />
           <Controller

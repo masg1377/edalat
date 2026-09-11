@@ -22,6 +22,9 @@ import type { BrandSummary } from '@edalat/shared'
 // Components Imports
 import CustomTextField from '@core/components/mui/TextField'
 
+// Upload Imports
+import ImageFilePicker from '@/components/upload/ImageFilePicker'
+
 // Lib Imports
 import { adminApi, ApiError, type BrandWritePayload } from '@/lib/api'
 import { AuthRequiredError } from '@/lib/auth'
@@ -148,7 +151,11 @@ const AddBrandDrawer = ({ open, editing, handleClose, onSaved }: Props) => {
             name='logoUrl'
             control={control}
             render={({ field }) => (
-              <CustomTextField {...field} fullWidth label='آدرس لوگو' placeholder='https://…' inputProps={{ dir: 'ltr' }} />
+              <ImageFilePicker
+                label='لوگوی برند'
+                value={field.value ? [field.value] : []}
+                onChange={urls => field.onChange(urls[0] ?? '')}
+              />
             )}
           />
           <Controller
