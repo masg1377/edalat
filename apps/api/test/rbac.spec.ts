@@ -1119,3 +1119,116 @@ describe('PATCH /reviews/admin/:id — RBAC, persistence and product rating resy
       .expect(404);
   });
 });
+
+/**
+ * فاز ۹ه — GET /admin/stats/overview. RBAC محدود به ADMIN/SUPER_ADMIN است
+ * (نه SALES_OPERATOR/CONTENT_MANAGER/MANUFACTURING_OPERATOR — برخلاف
+ * endpointهای صف‌های عملیاتی که چند نقش تخصصی را هم راه می‌دهند، این
+ * endpoint دادهٔ مالی/سراسری برمی‌گرداند). دادهٔ عددی دقیق را assert
+ * نمی‌کنیم چون فیکسچرهای توصیف‌های دیگر هم روی همین دیتابیس تست
+ * محصول/سفارش می‌سازند؛ فقط شکل پاسخ و این‌که فیکسچرهای این فایل در جمع
+ * دیده می‌شوند را بررسی می‌کنیم.
+ */
+describe('GET /admin/stats/overview — RBAC', () => {
+  it('401s with no token', async () => {
+    await request(app.getHttpServer()).get('/api/v1/admin/stats/overview').expect(401);
+  });
+
+  it('403s with a CUSTOMER token', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/admin/stats/overview')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+  });
+
+  it('403s SALES_OPERATOR — unlike orders/manufacturing/product-requests admin routes, stats is ADMIN/SUPER_ADMIN only', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/admin/stats/overview')
+      .set('Authorization', `Bearer ${salesOperatorToken}`)
+      .expect(403);
+  });
+
+  it('403s CONTENT_MANAGER and MANUFACTURING_OPERATOR too', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/admin/stats/overview')
+      .set('Authorization', `Bearer ${contentManagerToken}`)
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/api/v1/admin/stats/overview')
+      .set('Authorization', `Bearer ${manufacturingOperatorToken}`)
+      .expect(403);
+  });
+
+  it('200s ADMIN with the full overview shape, default 30-day period', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/admin/stats/overview')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(response.body.period.days).toBe(30);
+    expect(response.body.sales.dailyBreakdown).toHaveLength(30);
+    expect(typeof response.body.sales.total).toBe('number');
+    expect(typeof response.body.sales.orderCount).toBe('number');
+
+    // هر مقدار OrderStatus باید کلید داشته باشد، حتی اگر صفر باشد.
+    for (const status of [
+      'PENDING',
+      'AWAITING_PAYMENT',
+      'PAID',
+      'PROCESSING',
+      'PACKED',
+      'SHIPPED',
+      'DELIVERED',
+      'CANCELLED',
+      'RETURNED',
+    ]) {
+      expect(typeof response.body.ordersByStatus[status]).toBe('number');
+    }
+
+    expect(response.body.usersCount.total).toBeGreaterThanOrEqual(1);
+    // فیکسچر بالای فایل یک ManufacturingRequest و یک ProductIdentificationRequest
+    // با status: SUBMITTED می‌سازد.
+    expect(response.body.manufacturingByStatus.SUBMITTED).toBeGreaterThanOrEqual(1);
+    expect(response.body.productRequestsByStatus.SUBMITTED).toBeGreaterThanOrEqual(1);
+
+    expect(response.body.lowStock.threshold).toBe(5);
+    expect(Array.isArray(response.body.lowStock.items)).toBe(true);
+
+    // فیکسچر بالای فایل یک Order با grandTotal=100000 (PENDING) می‌سازد —
+    // در recentOrders (۱۰ سفارش آخر بر اساس createdAt) باید دیده شود.
+    expect(
+      response.body.recentOrders.some((row: { id: string }) => row.id === testOrderId),
+    ).toBe(true);
+
+    // فاز ۱۰ — Search Analytics هنوز پیاده نشده.
+    expect(response.body.popularSearches).toEqual([]);
+  });
+
+  it('also allows SUPER_ADMIN', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/admin/stats/overview')
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .expect(200);
+  });
+
+  it('respects a custom `days` query param', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/admin/stats/overview?days=7')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(response.body.period.days).toBe(7);
+    expect(response.body.sales.dailyBreakdown).toHaveLength(7);
+  });
+
+  it('counts only PAID+ orders toward sales.total — our PENDING fixture order is excluded, the PAID one is included', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/admin/stats/overview')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    // verifiedPurchaseOrder (فیکسچر بالای فایل) grandTotal=120000, status PAID,
+    // در بازهٔ ۳۰ روز پیش‌فرض ساخته شده — باید در مجموع فروش لحاظ شود.
+    expect(response.body.sales.total).toBeGreaterThanOrEqual(120_000);
+  });
+});
