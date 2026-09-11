@@ -53,15 +53,73 @@ export function clearSession(): void {
 }
 
 /**
- * Authorization header for endpoints that stay open to guests but should
- * still record the caller when they happen to be logged in — e.g. the
- * manufacturing / product-identification lead forms (PRD §88: never gate
- * these behind a login). Unlike `authFetch`, this never throws: no session
- * just means an empty header object, so the request goes through as a guest.
+ * Decodes a JWT's `exp` claim (base64url, second segment) without verifying
+ * its signature — a local expiry peek, not real validation. Returns `null`
+ * when the token can't be parsed at all.
  */
-export function optionalAuthHeader(): Record<string, string> {
+function decodeJwtExpiry(token: string): number | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const decoded = JSON.parse(atob(padded)) as { exp?: number };
+    return typeof decoded.exp === 'number' ? decoded.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+function isExpiringSoon(token: string, skewSeconds = 15): boolean {
+  const exp = decodeJwtExpiry(token);
+  if (exp === null) return true; // can't read it — be safe and try a refresh
+  return exp * 1000 - Date.now() < skewSeconds * 1000;
+}
+
+/**
+ * Authorization header for endpoints that stay open to guests but should
+ * still record the caller when they happen to be logged in — the
+ * manufacturing / product-identification lead forms (PRD §88: never gate
+ * these behind a login). Unlike `authFetch`, this never throws: no session,
+ * or a refresh that fails, just means an empty header object, so the
+ * request goes through as a guest.
+ *
+ * These endpoints use `OptionalJwtAuthGuard`, which treats an expired access
+ * token exactly like no token at all — the request still succeeds (201),
+ * just saved as anonymous (`userId: null`), with nothing in the response to
+ * signal that it happened. There is no 401 to react to afterwards the way
+ * `authFetch` reacts and retries, so the token has to be checked and
+ * refreshed *before* the request goes out — that's what this does, unlike a
+ * plain "attach whatever's in storage" header helper.
+ *
+ * Bug this fixes: a user logged in for more than ~15 minutes (the access
+ * token's TTL) would submit one of these forms, the (now-removed) sync
+ * version of this helper would silently attach the expired token, the
+ * backend would silently drop it, and the request would never show up under
+ * "requests" in their own dashboard — with no error anywhere to explain why.
+ */
+export async function optionalAuthHeaderFresh(): Promise<Record<string, string>> {
   const session = getSession();
-  return session ? { Authorization: `Bearer ${session.accessToken}` } : {};
+  if (!session) return {};
+
+  if (!isExpiringSoon(session.accessToken)) {
+    return { Authorization: `Bearer ${session.accessToken}` };
+  }
+
+  try {
+    const response = await fetch(`${BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: session.refreshToken }),
+    });
+    if (!response.ok) throw new Error('refresh failed');
+    const next = (await response.json()) as Session;
+    saveSession(next);
+    return { Authorization: `Bearer ${next.accessToken}` };
+  } catch {
+    clearSession();
+    return {};
+  }
 }
 
 export class AuthRequiredError extends Error {

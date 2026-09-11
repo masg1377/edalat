@@ -10,7 +10,7 @@ import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { DOCUMENT_TYPES, FilePicker, IMAGE_TYPES, type PickedFile } from '@/components/upload/file-picker';
 import { api } from '@/lib/api';
-import { optionalAuthHeader } from '@/lib/auth';
+import { optionalAuthHeaderFresh } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
@@ -178,9 +178,10 @@ export default function ManufacturingRequestPage() {
       // Same documented workaround as `product-request` / `FilePicker`: no
       // object-storage service exists yet, so every file field travels as a
       // data URL directly in the JSON body.
+      const authHeader = await optionalAuthHeaderFresh();
       const response = await fetch(`${BASE_URL}/manufacturing/requests`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...optionalAuthHeader() },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({
           contactName: form.contactName,
           companyName: form.companyName || undefined,

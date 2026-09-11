@@ -7,7 +7,7 @@ import { Footer } from '@/components/layout/footer';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { FilePicker, IMAGE_TYPES, type PickedFile } from '@/components/upload/file-picker';
-import { optionalAuthHeader } from '@/lib/auth';
+import { optionalAuthHeaderFresh } from '@/lib/auth';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 
@@ -49,9 +49,10 @@ export default function ProductRequestPage() {
       // data URLs (see FilePicker) — the request payload already expects a
       // list of URLs, so swapping in a presigned S3 upload only changes how
       // FilePicker resolves each file.
+      const authHeader = await optionalAuthHeaderFresh();
       const response = await fetch(`${BASE_URL}/product-requests`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...optionalAuthHeader() },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({
           images: images.map((image) => image.dataUrl),
           vehicleLabel: form.vehicleLabel || undefined,
