@@ -32,6 +32,9 @@ import type { IdentificationStatus, ProductSummary } from '@edalat/shared'
 import CustomTextField from '@core/components/mui/TextField'
 import CustomAutocomplete from '@core/components/mui/Autocomplete'
 
+// Upload Imports
+import ImageLightbox from '@/components/lightbox/ImageLightbox'
+
 // Lib Imports
 import { adminApi, ApiError, type AdminIdentificationRequest } from '@/lib/api'
 import { AuthRequiredError } from '@/lib/auth'
@@ -56,6 +59,7 @@ const IdentificationRequestDetailsCard = () => {
   const requestId = params.id
 
   const [item, setItem] = useState<AdminIdentificationRequest | null>(null)
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -179,9 +183,9 @@ return () => clearTimeout(timeout)
           <CardContent className='flex flex-wrap gap-4'>
             {item.images.length === 0 && <Typography color='text.secondary'>تصویری ارسال نشده است.</Typography>}
             {item.images.map((src, idx) => (
-              <a key={src + idx} href={src} target='_blank' rel='noreferrer'>
+              <button key={src + idx} type='button' onClick={() => setLightboxSrc(src)}>
                 <img src={src} alt={`تصویر ${idx + 1}`} className='is-32 bs-32 object-cover rounded border' />
-              </a>
+              </button>
             ))}
           </CardContent>
         </Card>
@@ -301,6 +305,8 @@ return () => clearTimeout(timeout)
           </CardContent>
         </Card>
       </Grid>
+
+      <ImageLightbox src={lightboxSrc} alt='پیش‌نمایش تصویر ارسالی مشتری' onClose={() => setLightboxSrc(null)} />
     </Grid>
   )
 }

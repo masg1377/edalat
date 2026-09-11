@@ -30,6 +30,9 @@ import type { ManufacturingStatus } from '@edalat/shared'
 // Component Imports
 import CustomTextField from '@core/components/mui/TextField'
 
+// Upload Imports
+import ImageLightbox from '@/components/lightbox/ImageLightbox'
+
 // Lib Imports
 import { adminApi, ApiError, type AdminManufacturingRequest } from '@/lib/api'
 import { AuthRequiredError } from '@/lib/auth'
@@ -54,6 +57,7 @@ const ManufacturingRequestDetailsCard = () => {
   const requestId = params.id
 
   const [item, setItem] = useState<AdminManufacturingRequest | null>(null)
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -206,11 +210,10 @@ const ManufacturingRequestDetailsCard = () => {
             <CardHeader title='فایل‌های مرجع' />
             <CardContent className='flex flex-wrap gap-4'>
               {referenceFiles.map(f => (
-                <a
+                <button
                   key={f.label}
-                  href={f.url}
-                  target='_blank'
-                  rel='noreferrer'
+                  type='button'
+                  onClick={() => setLightboxSrc(f.url)}
                   className='flex flex-col items-center gap-2'
                 >
                   <img
@@ -224,7 +227,7 @@ const ManufacturingRequestDetailsCard = () => {
                   <Typography variant='body2' color='text.secondary'>
                     {f.label}
                   </Typography>
-                </a>
+                </button>
               ))}
             </CardContent>
           </Card>
@@ -321,6 +324,8 @@ const ManufacturingRequestDetailsCard = () => {
           </CardContent>
         </Card>
       </Grid>
+
+      <ImageLightbox src={lightboxSrc} alt='پیش‌نمایش فایل مرجع' onClose={() => setLightboxSrc(null)} />
     </Grid>
   )
 }
