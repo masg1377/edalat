@@ -455,6 +455,48 @@ export interface UpdateReviewAdminPayload {
   adminNote?: string
 }
 
+/* ------------------------------------------------------------------ */
+/* فاز ۹ه — دشبورد آماری ادمین. Mirrors apps/api's admin-stats.module.ts  */
+/* GET /admin/stats/overview response shape.                            */
+/* ------------------------------------------------------------------ */
+
+export interface AdminStatsDailyPoint {
+  date: string
+  total: number
+  orderCount: number
+}
+
+export interface AdminStatsLowStockItem {
+  id: string
+  name: string
+  slug: string
+  mainImageUrl: string | null
+  stockQuantity: number
+  reservedQuantity: number
+  availableQuantity: number
+}
+
+export interface AdminStatsRecentOrder {
+  id: string
+  orderNumber: string
+  status: OrderStatus
+  grandTotal: number
+  createdAt: string
+  customerName: string
+}
+
+export interface AdminStatsOverview {
+  period: { days: number; from: string; to: string }
+  sales: { total: number; orderCount: number; dailyBreakdown: AdminStatsDailyPoint[] }
+  ordersByStatus: Record<OrderStatus, number>
+  usersCount: { total: number; newInPeriod: number; dailyBreakdown: { date: string; count: number }[] }
+  manufacturingByStatus: Record<ManufacturingStatus, number>
+  productRequestsByStatus: Record<IdentificationStatus, number>
+  lowStock: { threshold: number; count: number; items: AdminStatsLowStockItem[] }
+  recentOrders: AdminStatsRecentOrder[]
+  popularSearches: { query: string; count: number }[]
+}
+
 export const adminApi = {
   products: {
     // PRD §77/Rule 7 — reused, not reimplemented: `GET /products` is the
@@ -592,5 +634,12 @@ export const adminApi = {
         method: 'PATCH',
         body: JSON.stringify(payload)
       })
+  },
+
+  // فاز ۹ه — PRD §52. Requires ADMIN/SUPER_ADMIN (AdminStatsController) —
+  // see admin-stats.module.ts.
+  stats: {
+    overview: (params: Record<string, QueryValue> = {}) =>
+      authFetch<AdminStatsOverview>(`/admin/stats/overview${query(params)}`)
   }
 }
