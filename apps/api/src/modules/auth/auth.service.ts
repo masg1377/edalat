@@ -86,7 +86,9 @@ export class AuthService {
     return {
       phone,
       ttlSeconds,
-      ...(this.config.get('NODE_ENV') !== 'production' ? { devCode: code } : {}),
+      ...((this.config.get<string>('OTP_DEMO_MODE') === 'true' || this.config.get('NODE_ENV') !== 'production')
+        ? { devCode: code }
+        : {}),
     };
   }
 
