@@ -10,6 +10,8 @@ import { CarIcon } from '@/components/ui/icons';
 import { VehicleJumpSelector } from '@/components/vehicle/vehicle-jump-selector';
 import { VehiclesErrorState } from '@/components/vehicle/vehicles-error-state';
 import { api, attempt } from '@/lib/api';
+import { SearchBar } from '@/components/search/search-bar';
+import { vehicleBrandAssets } from '@/lib/design-assets';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000';
 
@@ -38,7 +40,8 @@ export default async function VehiclesPage() {
     <>
       <Header />
 
-      <main className="container-page pb-16 pt-8">
+      <main className="public-page vehicles-page container-page pb-16 pt-8">
+        <SearchBar className="public-search" />
         <nav aria-label="مسیر صفحه" className="mb-6 text-sm text-ink-500">
           <ol className="flex flex-wrap items-center gap-2">
             <li>
@@ -59,8 +62,8 @@ export default async function VehiclesPage() {
           بازه تعویض فیلترها و قطعات سازگار همان خودرو بروید.
         </p>
 
-        <div className="mt-10 grid gap-8 lg:grid-cols-[360px_1fr]">
-          <aside className="h-max rounded-card bg-white p-6 shadow-card lg:sticky lg:top-24">
+        <div className="vehicle-browse mt-10 grid gap-8">
+          <aside className="h-max rounded-card bg-white p-6 shadow-card vehicle-selector-panel">
             <h2 className="text-base font-bold text-ink-800">انتخاب مستقیم خودرو</h2>
             <p className="mt-1 text-xs text-ink-500">برند، مدل و تیپ/موتور را انتخاب کنید.</p>
             <div className="mt-5">
@@ -76,17 +79,17 @@ export default async function VehiclesPage() {
             ) : (
               <>
                 <h2 className="mb-6 text-base font-bold text-ink-800">مرور بر اساس برند خودرو</h2>
-                <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 xl:grid-cols-4">
+                <div className="vehicle-brand-grid grid grid-cols-2 gap-5 sm:grid-cols-3">
                   {brandsResult.data.map((brand) => (
                     <Link
                       key={brand.id}
                       href={`/vehicles/${brand.slug}`}
-                      className="flex flex-col items-center gap-3 rounded-card bg-surface p-6 text-center transition-shadow hover:shadow-card"
+                      className="vehicle-brand-card flex flex-col items-center gap-3 rounded-card bg-surface p-6 text-center transition-shadow hover:shadow-card"
                     >
                       <span className="relative grid h-16 w-16 place-items-center">
-                        {brand.logoUrl ? (
+                        {brand.logoUrl || vehicleBrandAssets[brand.slug] ? (
                           <Image
-                            src={brand.logoUrl}
+                            src={brand.logoUrl || vehicleBrandAssets[brand.slug]}
                             alt={brand.nameEn ?? brand.name}
                             width={64}
                             height={64}
@@ -125,8 +128,8 @@ function VehiclesEmptyState() {
       </span>
       <h2 className="mt-6 text-lg font-bold text-ink-800 md:text-xl">هنوز خودرویی ثبت نشده است</h2>
       <p className="mx-auto mt-3 max-w-md text-sm leading-8 text-ink-500">
-        خودروی خود را برای ما بنویسید تا به پایگاه داده اضافه کنیم، یا مستقیم قطعه موردنظر را با
-        عکس یا توضیح جست‌وجو کنید.
+        خودروی خود را برای ما بنویسید تا به پایگاه داده اضافه کنیم، یا مستقیم قطعه موردنظر را با عکس
+        یا توضیح جست‌وجو کنید.
       </p>
       <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
         <ButtonLink href="/product-request" size="lg">

@@ -2,13 +2,17 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 import { cn } from '@/lib/utils';
+import { ChevronDownIcon } from '@/components/ui/icons';
 
 export function FilterSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="border-b border-ink-100 py-5 last:border-b-0">
-      <h3 className="mb-3 text-sm font-bold text-ink-800">{title}</h3>
+    <details open className="filter-section border-b border-ink-100 py-5 last:border-b-0">
+      <summary className="mb-3 flex cursor-pointer items-center justify-between text-sm font-bold text-ink-800">
+        <span>{title}</span>
+        <ChevronDownIcon className="size-4" />
+      </summary>
       {children}
-    </section>
+    </details>
   );
 }
 
@@ -33,7 +37,7 @@ export function FilterOption({ href, label, active, countLabel }: FilterOptionPr
       href={href}
       aria-current={active ? 'true' : undefined}
       className={cn(
-        'flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
+        'filter-option flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
         active
           ? 'bg-brand-500 font-bold text-ink-900'
           : 'text-ink-600 hover:bg-ink-50 hover:text-ink-800',

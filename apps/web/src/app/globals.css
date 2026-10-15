@@ -2,28 +2,10 @@
 
 /* Self-hosted open fallback — no external font request, works offline. */
 @import '@fontsource-variable/vazirmatn';
+@import './design.css';
 
-/* The Figma file specifies IRANYekanX (a licensed font). Drop the licensed
-   .woff2 files into apps/web/public/fonts/ and they take over automatically;
-   until then Vazirmatn carries the same metrics closely enough. */
-@font-face {
-  font-family: 'IRANYekanX';
-  src: url('/fonts/IRANYekanX-Regular.woff2') format('woff2');
-  font-weight: 400;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'IRANYekanX';
-  src: url('/fonts/IRANYekanX-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-display: swap;
-}
-@font-face {
-  font-family: 'IRANYekanX';
-  src: url('/fonts/IRANYekanX-Black.woff2') format('woff2');
-  font-weight: 900;
-  font-display: swap;
-}
+/* The design uses licensed IRANYekanX. The bundled Vazirmatn font keeps the
+   interface self-hosted until the licensed font files are supplied. */
 
 /* ------------------------------------------------------------------ */
 /* Design tokens — extracted from the Figma file (Filter-site).        */
@@ -61,8 +43,8 @@
 
   /* Typography */
   --font-sans:
-    'IRANYekanX', 'Vazirmatn Variable', 'Vazirmatn', ui-sans-serif, system-ui, -apple-system,
-    'Segoe UI', sans-serif;
+    'Vazirmatn Variable', 'Vazirmatn', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+    sans-serif;
 
   /* Radii — Figma leans on very round corners: 40px pills, 24px cards */
   --radius-card: 1.5rem;

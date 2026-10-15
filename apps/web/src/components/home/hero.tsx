@@ -1,5 +1,7 @@
 import { ButtonLink } from '@/components/ui/button';
 import { SearchBar } from '@/components/search/search-bar';
+import Image from 'next/image';
+import { designAssets } from '@/lib/design-assets';
 
 /**
  * PRD §6 — the hero has to communicate all four pillars at a glance:
@@ -8,35 +10,26 @@ import { SearchBar } from '@/components/search/search-bar';
  */
 export function Hero() {
   return (
-    <section className="relative isolate min-h-[560px] overflow-hidden bg-ink-700 pb-16 pt-28 md:min-h-[708px] md:pb-0 md:pt-[136px]">
-      {/* Factory photograph. Replace with the exported Figma asset. */}
-      <div
-        aria-hidden
-        className="absolute inset-0 -z-10 bg-ink-700 bg-cover bg-center"
-        style={{ backgroundImage: 'var(--hero-image, none)' }}
-      />
-      <div aria-hidden className="absolute inset-0 -z-10 bg-ink-900/55" />
+    <section className="home-hero relative isolate overflow-hidden bg-ink-700">
+      <Image src={designAssets.factory} alt="" fill priority sizes="100vw" className="hero-photo" />
+      <div aria-hidden className="hero-shade" />
 
       <div className="container-page">
-        <SearchBar className="mx-auto max-w-4xl" />
+        <SearchBar className="hero-search mx-auto" />
 
-        <div className="mx-auto mt-16 max-w-3xl text-center text-white">
-          <p className="text-lg font-bold text-brand-500 md:text-xl">
-            کیفیت در تولید ، اعتماد در عملکرد
-          </p>
-          <h1 className="mt-4 text-2xl font-black leading-relaxed md:text-4xl">
-            تولید و فروش قطعات یدکی و فیلتر خودرو
-          </h1>
-          <p className="mx-auto mt-6 max-w-xl text-sm leading-8 text-white/85 md:text-base">
+        <div className="hero-copy mx-auto text-center text-white">
+          <p className="hero-eyebrow">کیفیت در تولید ، اعتماد در عملکرد</p>
+          <h1>تولید و فروش قطعات یدکی و فیلتر خودرو</h1>
+          <p className="hero-description mx-auto">
             تامین کننده مستقیم قطعات یدکی با استانداردهای روز دنیا. تامین محصولات از کارخانه به
             بهترین قیمت برای مشتریان عمده و خرده.
           </p>
 
-          <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
-            <ButtonLink href="/products" size="lg" className="min-w-[220px]">
+          <div className="hero-actions flex justify-center">
+            <ButtonLink href="/products" size="lg">
               خرید تکی
             </ButtonLink>
-            <ButtonLink href="/wholesale" variant="muted" size="lg" className="min-w-[220px]">
+            <ButtonLink href="/wholesale" variant="muted" size="lg">
               سفارش عمده
             </ButtonLink>
           </div>

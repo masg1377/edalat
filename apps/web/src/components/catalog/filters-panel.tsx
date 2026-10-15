@@ -27,7 +27,8 @@ export function FiltersPanel({
     source.find((entry) => entry.slug === slug)?.count;
 
   return (
-    <div className="rounded-card bg-white">
+    <div className="filters-panel rounded-card bg-white">
+      <h2 className="filters-title">فیلتر محصولات</h2>
       {hasActiveFilters(params) && (
         <div className="border-b border-ink-100 pb-4">
           <Link

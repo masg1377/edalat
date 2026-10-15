@@ -22,9 +22,7 @@ export interface AuthTokens {
 
 /** Normalizes the many ways an Iranian mobile number gets typed. */
 export function normalizePhone(input: string): string {
-  const digits = input
-    .replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
-    .replace(/\D/g, '');
+  const digits = input.replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/\D/g, '');
   if (digits.startsWith('0098')) return `0${digits.slice(4)}`;
   if (digits.startsWith('98') && digits.length === 12) return `0${digits.slice(2)}`;
   if (digits.startsWith('9') && digits.length === 10) return `0${digits}`;
@@ -51,7 +49,9 @@ export class AuthService {
    * PRD §30 — phone is the primary credential. We store only a hash of the OTP
    * and cap attempts, so a leaked database row cannot be replayed.
    */
-  async requestOtp(rawPhone: string): Promise<{ phone: string; ttlSeconds: number; devCode?: string }> {
+  async requestOtp(
+    rawPhone: string,
+  ): Promise<{ phone: string; ttlSeconds: number; devCode?: string }> {
     const phone = normalizePhone(rawPhone);
     if (!isValidIranMobile(phone)) {
       throw new BadRequestException('شماره موبایل معتبر نیست.');
@@ -116,7 +116,9 @@ export class AuthService {
     const existing = await this.prisma.user.findUnique({ where: { phone } });
     const user =
       existing ??
-      (await this.prisma.user.create({ data: { phone, phoneVerified: true, role: UserRole.CUSTOMER } }));
+      (await this.prisma.user.create({
+        data: { phone, phoneVerified: true, role: UserRole.CUSTOMER },
+      }));
 
     if (existing && !existing.phoneVerified) {
       await this.prisma.user.update({ where: { id: user.id }, data: { phoneVerified: true } });
@@ -170,7 +172,10 @@ export class AuthService {
 
   async logout(refreshToken: string): Promise<void> {
     await this.prisma.refreshToken
-      .updateMany({ where: { tokenHash: this.hash(refreshToken) }, data: { revokedAt: new Date() } })
+      .updateMany({
+        where: { tokenHash: this.hash(refreshToken) },
+        data: { revokedAt: new Date() },
+      })
       .catch(() => undefined);
   }
 
@@ -184,7 +189,8 @@ export class AuthService {
     });
 
     const refreshToken = randomBytes(48).toString('hex');
-    const days = Number((this.config.get<string>('JWT_REFRESH_TTL') ?? '30d').replace(/\D/g, '')) || 30;
+    const days =
+      Number((this.config.get<string>('JWT_REFRESH_TTL') ?? '30d').replace(/\D/g, '')) || 30;
     await this.prisma.refreshToken.create({
       data: {
         tokenHash: this.hash(refreshToken),

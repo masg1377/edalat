@@ -71,7 +71,10 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
     title,
     description,
     alternates: { canonical: `${SITE_URL}${canonicalPath}` },
-    robots: beyondCategory || params.page > 1 ? { index: false, follow: true } : { index: true, follow: true },
+    robots:
+      beyondCategory || params.page > 1
+        ? { index: false, follow: true }
+        : { index: true, follow: true },
     openGraph: { title, description, url: `${SITE_URL}${canonicalPath}` },
   };
 }
@@ -124,7 +127,8 @@ export default async function ProductsPage({ searchParams }: PageProps) {
     <>
       <Header />
 
-      <main className="container-page pb-16 pt-8">
+      <main className="catalog-page container-page pb-16 pt-8">
+        <SearchBar className="catalog-search" defaultValue={params.q} />
         <nav aria-label="مسیر صفحه" className="mb-6 text-sm text-ink-500">
           <ol className="flex flex-wrap items-center gap-2">
             <li>
@@ -142,10 +146,9 @@ export default async function ProductsPage({ searchParams }: PageProps) {
         <h1 className="text-2xl font-black text-ink-800 md:text-3xl">
           {params.q ? <>نتایج جستجو برای «{params.q}»</> : 'محصولات'}
         </h1>
+        <p className="catalog-description">قطعات یدکی با کیفیت از برند های معتبر</p>
 
-        <SearchBar className="mt-6 max-w-3xl" defaultValue={params.q} />
-
-        <div className="mt-10 grid gap-8 lg:grid-cols-[280px_1fr]">
+        <div className="catalog-layout mt-10 grid gap-8 lg:grid-cols-[320px_1fr]">
           <aside className="hidden lg:block" aria-label="فیلتر محصولات">
             <div className="sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto pe-2">
               {filters}
@@ -185,7 +188,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
               <CatalogEmptyState query={params.q} />
             ) : (
               <>
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="catalog-product-grid grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {catalogResult.data.items.map((product, index) => (
                     <ProductCard key={product.id} product={product} priority={index < 4} />
                   ))}

@@ -83,7 +83,7 @@ export function SearchBar({
           event.preventDefault();
           submit(value);
         }}
-        className="flex h-16 w-full items-center gap-2 rounded-pill bg-sand ps-2 pe-5"
+        className="search-form flex h-16 w-full flex-row-reverse items-center gap-2 rounded-pill bg-sand ps-5 pe-2"
       >
         <button
           type="submit"

@@ -20,6 +20,8 @@ export const metadata: Metadata = {
     url: siteUrl,
   },
   robots: { index: true, follow: true },
+  // Temporary Enamad domain ownership verification (&#x36; is the digit 6).
+  other: { enamad: '42078176' },
 };
 
 export const viewport: Viewport = {

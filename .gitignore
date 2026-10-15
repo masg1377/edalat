@@ -5,6 +5,9 @@ build/
 out/
 coverage/
 
+_claude_*
+Claude outputs
+
 .env
 .env.local
 .env.*.local

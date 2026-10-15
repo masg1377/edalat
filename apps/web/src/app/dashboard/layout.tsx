@@ -1,25 +1,12 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { Footer } from '@/components/layout/footer';
 import { Header } from '@/components/layout/header';
 import { getSession, logout } from '@/lib/auth';
-import { cn } from '@/lib/utils';
-
-const TABS: Array<{ href: string; label: string; exact?: boolean }> = [
-  { href: '/dashboard', label: 'نمای کلی', exact: true },
-  { href: '/dashboard/orders', label: 'سفارش‌ها' },
-  { href: '/dashboard/manufacturing-requests', label: 'درخواست‌های تولید' },
-  { href: '/dashboard/requests', label: 'درخواست‌های تصویری' },
-  { href: '/dashboard/favorites', label: 'علاقه‌مندی‌ها' },
-  { href: '/dashboard/my-vehicles', label: 'خودروهای من' },
-  { href: '/dashboard/reviews', label: 'نظرات من' },
-  { href: '/dashboard/addresses', label: 'آدرس‌ها' },
-  { href: '/dashboard/profile', label: 'پروفایل' },
-];
+import { DashboardNavigation } from '@/components/layout/dashboard-navigation';
 
 /**
  * PRD §31 — shared shell for the whole `/dashboard/*` area (Overview, Orders,
@@ -67,14 +54,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setReady(true);
   }, [pathname, router]);
 
-  const isActive = (href: string, exact?: boolean) =>
-    exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
-
   if (!ready) {
     return (
       <>
         <Header />
-        <main className="container-page pb-16 pt-8">
+        <main className="dashboard-page container-page pb-16 pt-8">
           <div className="mx-auto max-w-5xl space-y-4">
             <div className="h-8 w-48 animate-pulse rounded-full bg-surface" />
             <div className="h-72 animate-pulse rounded-card bg-surface" />
@@ -89,36 +73,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <>
       <Header />
 
-      <main className="container-page pb-16 pt-8">
+      <main className="dashboard-page container-page pb-16 pt-8">
         <h1 className="text-xl font-black text-ink-800 md:text-2xl">پنل کاربری</h1>
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[240px_1fr]">
           <aside className="lg:sticky lg:top-28 lg:self-start">
-            <nav className="flex gap-2 overflow-x-auto rounded-card bg-surface p-2 lg:flex-col lg:items-stretch lg:overflow-visible">
-              {TABS.map((tab) => (
-                <Link
-                  key={tab.href}
-                  href={tab.href}
-                  className={cn(
-                    'shrink-0 rounded-pill px-4 py-2.5 text-center text-sm font-bold transition-colors lg:text-start',
-                    isActive(tab.href, tab.exact)
-                      ? 'bg-brand-500 text-ink-900'
-                      : 'text-ink-600 hover:bg-white',
-                  )}
-                >
-                  {tab.label}
-                </Link>
-              ))}
-
-              <button
-                type="button"
-                onClick={() => void handleLogout()}
-                disabled={loggingOut}
-                className="shrink-0 rounded-pill px-4 py-2.5 text-center text-sm font-bold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-60 lg:text-start"
-              >
-                {loggingOut ? 'در حال خروج...' : 'خروج از حساب'}
-              </button>
-            </nav>
+            <DashboardNavigation
+              pathname={pathname}
+              onLogout={() => void handleLogout()}
+              loggingOut={loggingOut}
+            />
           </aside>
 
           <div className="min-w-0">{children}</div>

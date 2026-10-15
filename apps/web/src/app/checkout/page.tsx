@@ -41,7 +41,11 @@ interface ShippingMethod {
 const SHIPPING_METHODS: ShippingMethod[] = [
   { id: 'standard', label: 'پست پیشتاز', description: 'ارسال طی ۲ تا ۴ روز کاری' },
   { id: 'express', label: 'تیپاکس (ارسال سریع)', description: 'ارسال طی ۱ تا ۲ روز کاری' },
-  { id: 'pickup', label: 'تحویل حضوری از انبار عدالت فیلتر', description: 'هماهنگی تلفنی پس از ثبت سفارش' },
+  {
+    id: 'pickup',
+    label: 'تحویل حضوری از انبار عدالت فیلتر',
+    description: 'هماهنگی تلفنی پس از ثبت سفارش',
+  },
 ];
 
 const STEPS: Array<{ id: Step; label: string }> = [
@@ -188,7 +192,7 @@ export default function CheckoutPage() {
     return (
       <>
         <Header />
-        <main className="container-page pb-16 pt-8">
+        <main className="checkout-page container-page pb-16 pt-8">
           <div className="mx-auto max-w-3xl space-y-4">
             <div className="h-8 w-48 animate-pulse rounded-full bg-surface" />
             <div className="h-64 animate-pulse rounded-card bg-surface" />
@@ -204,8 +208,11 @@ export default function CheckoutPage() {
     return (
       <>
         <Header />
-        <main className="container-page pb-16 pt-8">
-          <div role="alert" className="mx-auto max-w-lg rounded-card bg-surface px-6 py-16 text-center">
+        <main className="checkout-page container-page pb-16 pt-8">
+          <div
+            role="alert"
+            className="mx-auto max-w-lg rounded-card bg-surface px-6 py-16 text-center"
+          >
             <h1 className="text-lg font-bold text-ink-800">اطلاعات پرداخت بارگذاری نشد</h1>
             <p className="mx-auto mt-3 max-w-md text-sm leading-8 text-ink-500">{loadError}</p>
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -227,7 +234,7 @@ export default function CheckoutPage() {
     return (
       <>
         <Header />
-        <main className="container-page pb-16 pt-8">
+        <main className="checkout-page container-page pb-16 pt-8">
           <div className="mx-auto max-w-lg rounded-card bg-surface px-6 py-16 text-center">
             <span className="mx-auto grid size-16 place-items-center rounded-full bg-white">
               <CartIcon className="size-8 text-ink-400" aria-hidden />
@@ -253,7 +260,7 @@ export default function CheckoutPage() {
     <>
       <Header cartCount={cart.items.reduce((sum, i) => sum + i.quantity, 0)} />
 
-      <main className="container-page pb-16 pt-8">
+      <main className="checkout-page container-page pb-16 pt-8">
         <h1 className="text-2xl font-black text-ink-800 md:text-3xl">تکمیل خرید</h1>
 
         {/* Stepper */}
@@ -390,8 +397,7 @@ function AddressStep({
                     )}
                   </div>
                   <p className="mt-2 text-xs leading-7 text-ink-500">
-                    {address.recipientName} ·{' '}
-                    <span className="ltr-num">{address.phone}</span>
+                    {address.recipientName} · <span className="ltr-num">{address.phone}</span>
                     <br />
                     {address.province}، {address.city} — {address.line}
                     {address.postalCode && (
@@ -532,7 +538,7 @@ function ReviewStep({
 
         <ul className="mt-5 divide-y divide-ink-200">
           {cart.items.map((item) => {
-            const image = productImage(item.product.mainImageUrl);
+            const image = productImage(item.product.mainImageUrl, item.product.slug);
             return (
               <li key={item.id} className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
                 <div className="relative size-16 shrink-0 overflow-hidden rounded-xl bg-white">
@@ -541,7 +547,9 @@ function ReviewStep({
                     alt=""
                     fill
                     sizes="64px"
-                    className={image.isPlaceholder ? 'object-contain p-3 opacity-60' : 'object-contain p-2'}
+                    className={
+                      image.isPlaceholder ? 'object-contain p-3 opacity-60' : 'object-contain p-2'
+                    }
                   />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -576,9 +584,9 @@ function ReviewStep({
       </div>
 
       <div className="rounded-card border border-brand-500/40 bg-brand-500/10 p-5 text-xs leading-7 text-ink-700">
-        <b>محیط آزمایشی/دمو:</b> پرداخت این سایت هنوز به هیچ درگاه بانکی واقعی وصل نیست. با زدن دکمهٔ
-        زیر فقط یک سفارش ثبت می‌شود و در مرحلهٔ بعد پرداخت به‌صورت شبیه‌سازی‌شده تأیید می‌گردد — هیچ
-        مبلغی از حساب شما کسر نخواهد شد.
+        <b>محیط آزمایشی/دمو:</b> پرداخت این سایت هنوز به هیچ درگاه بانکی واقعی وصل نیست. با زدن
+        دکمهٔ زیر فقط یک سفارش ثبت می‌شود و در مرحلهٔ بعد پرداخت به‌صورت شبیه‌سازی‌شده تأیید می‌گردد
+        — هیچ مبلغی از حساب شما کسر نخواهد شد.
       </div>
 
       {error && (
@@ -588,10 +596,21 @@ function ReviewStep({
       )}
 
       <div className="flex gap-3">
-        <Button type="button" variant="muted" onClick={onBack} disabled={pending} className="flex-1">
+        <Button
+          type="button"
+          variant="muted"
+          onClick={onBack}
+          disabled={pending}
+          className="flex-1"
+        >
           بازگشت
         </Button>
-        <Button type="button" onClick={onSubmit} disabled={pending || !address} className="flex-[2]">
+        <Button
+          type="button"
+          onClick={onSubmit}
+          disabled={pending || !address}
+          className="flex-[2]"
+        >
           {pending ? 'در حال ثبت سفارش…' : 'ثبت سفارش'}
         </Button>
       </div>
@@ -630,12 +649,15 @@ function MockPaymentPanel({
         <p className="text-sm font-bold text-ink-800">این یک درگاه پرداخت واقعی نیست</p>
         <p className="mx-auto mt-2 max-w-md text-xs leading-7 text-ink-600">
           عدالت فیلتر در حال حاضر به درگاه بانکی متصل نیست. با زدن دکمهٔ زیر، پرداخت به‌صورت
-          آزمایشی/دمو تأیید می‌شود تا بتوانید مسیر ثبت سفارش را کامل ببینید — هیچ مبلغ واقعی‌ای جابه‌جا
-          نمی‌شود.
+          آزمایشی/دمو تأیید می‌شود تا بتوانید مسیر ثبت سفارش را کامل ببینید — هیچ مبلغ واقعی‌ای
+          جابه‌جا نمی‌شود.
         </p>
 
         {error && (
-          <p role="alert" className="mx-auto mt-4 max-w-md rounded-xl bg-red-50 px-4 py-3 text-xs text-red-700">
+          <p
+            role="alert"
+            className="mx-auto mt-4 max-w-md rounded-xl bg-red-50 px-4 py-3 text-xs text-red-700"
+          >
             {error}
           </p>
         )}
@@ -696,4 +718,3 @@ function OrderSummaryAside({ cart, order }: { cart: Cart; order: OrderDetail | n
     </aside>
   );
 }
-

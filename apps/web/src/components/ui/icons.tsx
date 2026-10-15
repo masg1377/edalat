@@ -231,3 +231,12 @@ export function MapPinIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function CalendarIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M7 3v4M17 3v4M3 11h18M7 15h2M15 15h2M7 18h2" />
+    </svg>
+  );
+}

@@ -36,7 +36,9 @@ function CartView() {
       setError(null);
     } catch (err) {
       if (err instanceof AuthRequiredError) {
-        router.replace(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+        router.replace(
+          `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`,
+        );
         return;
       }
       setError(err instanceof Error ? err.message : 'سبد خرید بارگذاری نشد.');
@@ -47,7 +49,9 @@ function CartView() {
 
   useEffect(() => {
     if (!getSession()) {
-      router.replace(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+      router.replace(
+        `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`,
+      );
       return;
     }
 
@@ -64,7 +68,9 @@ function CartView() {
           });
         } catch (err) {
           if (err instanceof AuthRequiredError) {
-            router.replace(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+            router.replace(
+              `/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`,
+            );
             return;
           }
           setError(err instanceof Error ? err.message : 'افزودن به سبد ناموفق بود.');
@@ -114,9 +120,10 @@ function CartView() {
     <>
       <Header cartCount={itemCount} />
 
-      <main className="container-page pb-16 pt-8">
+      <main className="cart-page container-page pb-16 pt-8">
         <h1 className="text-2xl font-black text-ink-800 md:text-3xl">
-          سبد خرید شما{cart && cart.items.length > 0 && ` (${toPersianDigits(cart.items.length)} کالا)`}
+          سبد خرید شما
+          {cart && cart.items.length > 0 && ` (${toPersianDigits(cart.items.length)} کالا)`}
         </h1>
 
         {loading ? (
@@ -134,7 +141,7 @@ function CartView() {
           <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_380px]">
             <ul className="space-y-4">
               {cart.items.map((item) => {
-                const image = productImage(item.product.mainImageUrl);
+                const image = productImage(item.product.mainImageUrl, item.product.slug);
                 return (
                   <li
                     key={item.id}
@@ -149,7 +156,11 @@ function CartView() {
                         alt=""
                         fill
                         sizes="112px"
-                        className={image.isPlaceholder ? 'object-contain p-6 opacity-60' : 'object-contain p-3'}
+                        className={
+                          image.isPlaceholder
+                            ? 'object-contain p-6 opacity-60'
+                            : 'object-contain p-3'
+                        }
                       />
                     </Link>
 
@@ -218,7 +229,8 @@ function CartView() {
 
                         <div className="text-start">
                           <p className="text-xs text-ink-500">
-                            هر عدد <span className="ltr-num">{formatToman(item.unitPrice)}</span> تومان
+                            هر عدد <span className="ltr-num">{formatToman(item.unitPrice)}</span>{' '}
+                            تومان
                           </p>
                           <p className="mt-0.5 font-bold text-ink-800">
                             <span className="ltr-num">{formatToman(item.lineTotal)}</span>
@@ -250,7 +262,11 @@ function CartView() {
                   {cart.discountTotal > 0 && (
                     <Row label="تخفیف کالاها" value={-cart.discountTotal} tone="text-green-700" />
                   )}
-                  <Row label="هزینه ارسال" value={cart.shippingTotal} hint="در مرحله پرداخت محاسبه می‌شود" />
+                  <Row
+                    label="هزینه ارسال"
+                    value={cart.shippingTotal}
+                    hint="در مرحله پرداخت محاسبه می‌شود"
+                  />
                 </dl>
 
                 <div className="mt-5 flex items-baseline justify-between border-t border-ink-200 pt-5">
@@ -321,8 +337,8 @@ function EmptyCart() {
       </span>
       <h2 className="mt-6 text-lg font-bold text-ink-800">سبد خرید شما خالی است</h2>
       <p className="mx-auto mt-3 max-w-sm text-sm leading-8 text-ink-500">
-        هنوز محصولی اضافه نکرده‌اید. اگر قطعه موردنظرتان را پیدا نمی‌کنید، عکسش را بفرستید تا برایتان
-        پیدا کنیم.
+        هنوز محصولی اضافه نکرده‌اید. اگر قطعه موردنظرتان را پیدا نمی‌کنید، عکسش را بفرستید تا
+        برایتان پیدا کنیم.
       </p>
       <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
         <ButtonLink href="/products" size="lg">

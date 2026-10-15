@@ -12,13 +12,13 @@ interface ProductRailProps {
 
 export function ProductRail({ title, products, moreHref }: ProductRailProps) {
   return (
-    <section className="container-page mt-24">
+    <section className="product-section container-page">
       <SectionHeading title={title} moreHref={moreHref} />
 
       {products.length > 0 ? (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {products.map((product) => (
-            <ProductCard key={product.id} product={product} />
+        <div className="home-product-grid">
+          {products.slice(0, 3).map((product) => (
+            <ProductCard key={product.id} product={product} compact />
           ))}
         </div>
       ) : (

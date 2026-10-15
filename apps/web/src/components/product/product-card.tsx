@@ -12,15 +12,20 @@ interface ProductCardProps {
   product: ProductSummary;
   /** Grid position — the first row is above the fold and loads eagerly. */
   priority?: boolean;
+  compact?: boolean;
 }
 
-export function ProductCard({ product, priority = false }: ProductCardProps) {
-  const image = productImage(product.mainImageUrl);
+export function ProductCard({ product, priority = false, compact = false }: ProductCardProps) {
+  const image = productImage(product.mainImageUrl, product.slug, product.category?.slug);
 
   return (
-    <article className="group flex h-full flex-col overflow-hidden rounded-card bg-surface transition-shadow focus-within:shadow-card hover:shadow-card">
+    <article
+      className={`product-card ${compact ? 'home-product-card' : 'catalog-product-card'} group flex h-full flex-col rounded-card transition-shadow focus-within:shadow-card hover:shadow-card`}
+    >
       {/* Fixed aspect ratio keeps the grid from shifting as images arrive. */}
-      <div className="relative aspect-square bg-white">
+      <div
+        className={`product-photo relative aspect-square ${compact ? '' : 'bg-white rounded-t-card'}`}
+      >
         <Link
           href={`/products/${product.slug}`}
           tabIndex={-1}
@@ -50,10 +55,26 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
         {/* Sibling of the (decorative, aria-hidden) image link, not nested in
             it — a real interactive control inside an aria-hidden link would
             be unreachable for assistive tech. */}
-        <FavoriteButton productId={product.id} className="absolute start-3 top-3 size-9" />
+        {!compact && (
+          <FavoriteButton
+            productId={product.id}
+            className="catalog-favorite absolute end-3 top-3 size-9"
+            iconClassName="text-red-500"
+          />
+        )}
       </div>
 
-      <div className="flex flex-1 flex-col p-5">
+      <div className="product-card-body flex flex-1 flex-col p-5">
+        {!compact && (
+          <div className="card-purchase-links">
+            <Link href={`/products/${product.slug}`}>خرده</Link>
+            {product.lowestWholesalePrice !== null && (
+              <Link href={`/products?purchaseType=WHOLESALE&q=${encodeURIComponent(product.name)}`}>
+                عمده
+              </Link>
+            )}
+          </div>
+        )}
         <div className="flex items-start justify-between gap-3">
           <h3 className="min-w-0">
             <Link
@@ -76,9 +97,10 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
         </div>
 
         {/* Part numbers are latin — isolate them so RTL does not reverse them. */}
-        {product.technicalCode && (
+        {!compact && product.technicalCode && (
           <p className="mt-2 text-xs text-ink-500">
-            کد فنی: <span className="ltr-num font-medium text-ink-700">{product.technicalCode}</span>
+            کد فنی:{' '}
+            <span className="ltr-num font-medium text-ink-700">{product.technicalCode}</span>
           </p>
         )}
 
@@ -94,9 +116,10 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
 
         {/* Rule 1 — wholesale is a separate price. This is a display-only floor
             from the backend; the billable price comes from the pricing quote. */}
-        {product.lowestWholesalePrice !== null && (
+        {!compact && product.lowestWholesalePrice !== null && (
           <p className="mt-2 text-xs text-ink-500">
-            عمده از <b className="ltr-num text-ink-700">{formatToman(product.lowestWholesalePrice)}</b>{' '}
+            عمده از{' '}
+            <b className="ltr-num text-ink-700">{formatToman(product.lowestWholesalePrice)}</b>{' '}
             تومان
             {product.minWholesaleQuantity !== null && (
               <> — حداقل {toPersianDigits(product.minWholesaleQuantity)} عدد</>
@@ -104,7 +127,7 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
           </p>
         )}
 
-        {product.compatibleVehicleCount > 0 && (
+        {!compact && product.compatibleVehicleCount > 0 && (
           <p className="mt-2 flex items-center gap-1.5 text-xs text-ink-500">
             <CarIcon className="size-4 shrink-0" aria-hidden />
             مناسب {toPersianDigits(product.compatibleVehicleCount)} خودرو
@@ -114,8 +137,16 @@ export function ProductCard({ product, priority = false }: ProductCardProps) {
         {/* `mt-auto` pins the CTA to the bottom so buttons line up across a row
             whose titles wrap to different numbers of lines. */}
         <div className="mt-auto pt-6">
-          <ButtonLink href={`/products/${product.slug}`} className="w-full" size="md">
-            مشاهده محصول
+          <ButtonLink
+            href={
+              !compact && product.inStock
+                ? `/cart?${new URLSearchParams({ add: product.id, quantity: '1', purchaseType: 'RETAIL' }).toString()}`
+                : `/products/${product.slug}`
+            }
+            className="w-full"
+            size="md"
+          >
+            {!compact && product.inStock ? 'افزودن به سبد خرید' : 'مشاهده محصول'}
             <span className="sr-only"> — {product.name}</span>
           </ButtonLink>
         </div>

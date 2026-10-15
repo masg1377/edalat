@@ -68,33 +68,30 @@ function LoginForm() {
     }
   };
 
-  const field =
-    'h-14 w-full rounded-pill border border-ink-200 bg-white px-5 text-center text-lg ' +
-    'text-ink-800 outline-none transition-colors focus:border-brand-500';
+  const field = 'login-field h-14 w-full px-5 text-center text-lg outline-none transition-colors';
 
   return (
-    // Figma login frame (201:4271) is a full-bleed photo behind the centered
-    // card — same placeholder-image pattern as Hero until the asset is exported.
-    <main className="relative isolate grid min-h-screen place-items-center overflow-hidden bg-ink-700 px-4 py-12">
+    // Keep the existing OTP flow within the exported login design.
+    <main className="login-page relative isolate grid min-h-screen place-items-center overflow-hidden bg-ink-700 px-4 py-12">
       <div
         aria-hidden
         className="absolute inset-0 -z-10 bg-ink-700 bg-cover bg-center"
-        style={{ backgroundImage: 'var(--login-image, none)' }}
+        style={{ backgroundImage: 'url(/design/login-background.png)' }}
       />
-      <div aria-hidden className="absolute inset-0 -z-10 bg-ink-900/60" />
+      <div aria-hidden className="absolute inset-0 -z-10 bg-ink-900/15" />
 
-      <div className="w-full max-w-md rounded-card bg-white p-8 shadow-card md:p-10">
+      <div className="login-card w-full rounded-card p-8 shadow-card md:p-16">
         <div className="text-center">
           <Logo size="md" className="mx-auto" />
-          <h1 className="mt-7 text-xl font-bold text-ink-800">
+          <h1 className="mt-7 text-xl font-bold text-white">
             {step === 'phone' ? 'ورود یا ثبت‌نام' : 'کد تأیید را وارد کنید'}
           </h1>
-          <p className="mt-3 text-sm leading-7 text-ink-500">
+          <p className="mt-3 text-sm leading-7 text-white/80">
             {step === 'phone' ? (
               'شماره موبایل خود را وارد کنید. کد تأیید برای شما پیامک می‌شود.'
             ) : (
               <>
-                کد ۵ رقمی به شماره <span className="ltr-num font-bold text-ink-700">{phone}</span>{' '}
+                کد ۵ رقمی به شماره <span className="ltr-num font-bold text-white">{phone}</span>{' '}
                 ارسال شد.
               </>
             )}
@@ -111,7 +108,7 @@ function LoginForm() {
         >
           {step === 'phone' ? (
             <label className="block">
-              <span className="sr-only">شماره موبایل</span>
+              <span className="mb-3 block text-sm font-bold text-white">ورود با شماره موبایل</span>
               <input
                 type="tel"
                 inputMode="numeric"
@@ -148,7 +145,7 @@ function LoginForm() {
           )}
 
           {devCode && (
-            <p className="mt-4 rounded-xl bg-brand-500/15 px-4 py-3 text-xs text-ink-700">
+            <p className="mt-4 rounded-xl bg-brand-500/15 px-4 py-3 text-xs text-brand-100">
               حالت توسعه — کد: <b className="ltr-num">{devCode}</b>
             </p>
           )}
@@ -157,7 +154,7 @@ function LoginForm() {
             type="submit"
             size="lg"
             disabled={pending || (step === 'phone' ? phone.length < 10 : code.length !== 5)}
-            className="mt-6 w-full"
+            className="login-submit mt-6 w-full"
           >
             {pending ? 'لطفاً صبر کنید…' : step === 'phone' ? 'ارسال کد تأیید' : 'ورود'}
           </Button>
@@ -172,20 +169,21 @@ function LoginForm() {
                 setCode('');
                 setError(null);
               }}
-              className="text-ink-500 underline-offset-4 hover:text-ink-800 hover:underline"
+              className="text-white/80 underline-offset-4 hover:text-white hover:underline"
             >
               تغییر شماره
             </button>
 
             {secondsLeft > 0 ? (
-              <span className="text-ink-400">
-                ارسال دوباره تا <span className="ltr-num">{toPersianDigits(secondsLeft)}</span> ثانیه
+              <span className="text-white/70">
+                ارسال دوباره تا <span className="ltr-num">{toPersianDigits(secondsLeft)}</span>{' '}
+                ثانیه
               </span>
             ) : (
               <button
                 type="button"
                 onClick={() => void sendCode()}
-                className="font-bold text-ink-800 underline underline-offset-4"
+                className="font-bold text-brand-500 underline underline-offset-4"
               >
                 ارسال دوباره کد
               </button>
@@ -193,10 +191,11 @@ function LoginForm() {
           </div>
         )}
 
-        <p className="mt-8 text-center text-xs leading-6 text-ink-400">
-          با ورود، <Link href="/privacy" className="underline underline-offset-4">حریم خصوصی</Link> و{' '}
-          <Link href="/terms" className="underline underline-offset-4">قوانین</Link> عدالت فیلتر را
-          می‌پذیرید.
+        <p className="mt-8 text-center text-xs leading-6 text-white/70">
+          با تأیید شماره، حساب کاربری شما ساخته می‌شود.
+          <Link href="/" className="mt-3 block text-brand-500 underline underline-offset-4">
+            بازگشت به خانه
+          </Link>
         </p>
       </div>
     </main>

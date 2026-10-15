@@ -9,11 +9,9 @@ import { cn } from '@/lib/utils';
 
 const NAV = [
   { href: '/', label: 'خانه' },
-  { href: '/products', label: 'محصولات', hasMenu: true },
-  { href: '/brands', label: 'برند ها' },
+  { href: '/products', label: 'فروشگاه', hasMenu: true },
   { href: '/wholesale', label: 'فروش عمده' },
   { href: '/vehicles', label: 'خودرو ها' },
-  { href: '/manufacturing', label: 'تولید با برند شما' },
   { href: '/contact', label: 'تماس با ما' },
   { href: '/about', label: 'درباره ما' },
 ];
@@ -28,18 +26,21 @@ export function Header({ overlay = false, cartCount = 0 }: HeaderProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const isActive = (href: string) => (href === '/' ? pathname === '/' : pathname.startsWith(href));
+  const isActive = (href: string) =>
+    href === '/' ? overlay || pathname === '/' : pathname.startsWith(href);
 
   return (
     <header
       className={cn(
-        'z-40 w-full',
-        overlay ? 'absolute inset-x-0 top-0 text-white' : 'sticky top-0 border-b border-ink-100 bg-white text-ink-800',
+        'site-header z-40 w-full',
+        overlay
+          ? 'absolute inset-x-0 top-0 text-white'
+          : 'sticky top-0 border-b border-ink-100 bg-white text-ink-800',
       )}
     >
-      <div className="container-page flex h-20 items-center justify-between gap-4 md:h-[136px]">
+      <div className="header-inner container-page flex items-center justify-between gap-4">
         {/* Primary navigation */}
-        <nav className="hidden items-center gap-8 lg:flex">
+        <nav aria-label="منوی اصلی" className="header-nav hidden items-center lg:flex">
           {NAV.map((item) => (
             <Link
               key={item.href}
@@ -56,8 +57,12 @@ export function Header({ overlay = false, cartCount = 0 }: HeaderProps) {
         </nav>
 
         {/* Account actions — end side in RTL, so visually on the left. */}
-        <div className="flex flex-row-reverse items-center gap-5 md:gap-7">
-          <Link href="/cart" className="group flex flex-col items-center gap-1" aria-label="سبد خرید">
+        <div className="header-actions flex flex-row-reverse items-center gap-5 md:gap-7">
+          <Link
+            href="/cart"
+            className="group flex flex-col items-center gap-1"
+            aria-label="سبد خرید"
+          >
             <span className="relative">
               <CartIcon className="size-6" />
               {cartCount > 0 && (
@@ -88,7 +93,13 @@ export function Header({ overlay = false, cartCount = 0 }: HeaderProps) {
           className="grid size-11 place-items-center rounded-full border border-current/20 lg:hidden"
         >
           <span className="sr-only">منو</span>
-          <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <svg
+            viewBox="0 0 24 24"
+            className="size-6"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+          >
             <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
           </svg>
         </button>

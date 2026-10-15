@@ -9,15 +9,16 @@ import { cn } from '@/lib/utils';
 
 interface ProductGalleryProps {
   images: string[];
+  slug?: string;
   alt: string;
   /** Shown as a badge over the image, e.g. "پرفروش". */
   badge?: string | null;
 }
 
-export function ProductGallery({ images, alt, badge }: ProductGalleryProps) {
+export function ProductGallery({ images, alt, badge, slug }: ProductGalleryProps) {
   const slides = images.length > 0 ? images : [null];
   const [index, setIndex] = useState(0);
-  const current = productImage(slides[index]);
+  const current = productImage(slides[index], slug);
 
   const go = (delta: number) => setIndex((i) => (i + delta + slides.length) % slides.length);
 
@@ -30,7 +31,9 @@ export function ProductGallery({ images, alt, badge }: ProductGalleryProps) {
           fill
           sizes="(max-width: 1024px) 100vw, 440px"
           priority
-          className={current.isPlaceholder ? 'object-contain p-20 opacity-60' : 'object-contain p-10'}
+          className={
+            current.isPlaceholder ? 'object-contain p-20 opacity-60' : 'object-contain p-10'
+          }
         />
 
         {badge && (
@@ -64,7 +67,7 @@ export function ProductGallery({ images, alt, badge }: ProductGalleryProps) {
       {slides.length > 1 && (
         <ul className="mt-4 flex gap-3">
           {slides.map((src, i) => {
-            const thumb = productImage(src);
+            const thumb = productImage(src, slug);
             return (
               <li key={i}>
                 <button

@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 
 import { SectionHeading } from './section-heading';
+import { vehicleBrandAssets } from '@/lib/design-assets';
 
 interface BrandItem {
   id: string;
@@ -15,24 +16,24 @@ export function BrandStrip({ brands }: { brands: BrandItem[] }) {
   if (brands.length === 0) return null;
 
   return (
-    <section className="container-page mt-24">
+    <section className="brand-section container-page">
       <SectionHeading title="برند های معتبر و سازگار" />
 
-      <ul className="grid grid-cols-3 gap-6 sm:grid-cols-4 lg:grid-cols-8">
+      <ul className="brand-grid">
         {brands.slice(0, 8).map((brand) => (
           <li key={brand.id}>
             <Link
-              href={`/vehicles/${brand.slug}`}
-              className="flex flex-col items-center gap-3 rounded-card p-3 transition-colors hover:bg-surface"
+              href={`/products?vehicleBrand=${brand.slug}`}
+              className="brand-link flex flex-col items-center rounded-card transition-colors hover:bg-surface"
             >
-              <span className="relative grid h-16 w-16 place-items-center">
-                {brand.logoUrl ? (
+              <span className="brand-logo relative grid place-items-center">
+                {brand.logoUrl || vehicleBrandAssets[brand.slug] ? (
                   <Image
-                    src={brand.logoUrl}
+                    src={brand.logoUrl || vehicleBrandAssets[brand.slug]}
                     alt={brand.nameEn ?? brand.name}
-                    width={64}
-                    height={64}
-                    className="h-16 w-16 object-contain"
+                    width={130}
+                    height={130}
+                    className={`brand-logo-image brand-${brand.slug} object-contain`}
                   />
                 ) : (
                   <span className="grid size-16 place-items-center rounded-full bg-surface text-lg font-bold text-ink-400">
@@ -40,7 +41,7 @@ export function BrandStrip({ brands }: { brands: BrandItem[] }) {
                   </span>
                 )}
               </span>
-              <span className="text-center text-sm font-bold text-ink-800">
+              <span className="brand-name text-center font-bold text-ink-800" dir="ltr">
                 {brand.nameEn ?? brand.name}
               </span>
             </Link>

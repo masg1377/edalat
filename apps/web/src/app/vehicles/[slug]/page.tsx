@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
+import { SearchBar } from '@/components/search/search-bar';
+import { vehicleAssets } from '@/lib/design-assets';
 import { notFound } from 'next/navigation';
 import type { ProductSummary, VehicleDetail } from '@edalat/shared';
 import { toPersianDigits } from '@edalat/shared';
@@ -58,7 +61,9 @@ async function findVehicle(slug: string): Promise<VehicleDetail | null> {
   }
 }
 
-async function findBrand(slug: string): Promise<VehicleBrandOption & { logoUrl: string | null; vehicleCount: number } | null> {
+async function findBrand(
+  slug: string,
+): Promise<(VehicleBrandOption & { logoUrl: string | null; vehicleCount: number }) | null> {
   const brands = await safe(api.vehicles.brands(), []);
   return brands.find((brand) => brand.slug === slug) ?? null;
 }
@@ -120,15 +125,20 @@ async function VehicleDetailView({ vehicle }: { vehicle: VehicleDetail }) {
     <>
       <Header />
 
-      <main className="container-page pb-16 pt-8">
+      <main className="public-page vehicle-detail-page container-page pb-16 pt-8">
+        <SearchBar className="public-search" />
         <nav aria-label="مسیر صفحه" className="mb-6 text-sm text-ink-500">
           <ol className="flex flex-wrap items-center gap-2">
             <li>
-              <Link href="/" className="hover:text-ink-800">خانه</Link>
+              <Link href="/" className="hover:text-ink-800">
+                خانه
+              </Link>
             </li>
             <li aria-hidden>›</li>
             <li>
-              <Link href="/vehicles" className="hover:text-ink-800">اطلاعات خودرو</Link>
+              <Link href="/vehicles" className="hover:text-ink-800">
+                اطلاعات خودرو
+              </Link>
             </li>
             <li aria-hidden>›</li>
             <li>
@@ -137,22 +147,37 @@ async function VehicleDetailView({ vehicle }: { vehicle: VehicleDetail }) {
               </Link>
             </li>
             <li aria-hidden>›</li>
-            <li className="font-bold text-ink-800" aria-current="page">{vehicle.model}</li>
+            <li className="font-bold text-ink-800" aria-current="page">
+              {vehicle.model}
+            </li>
           </ol>
         </nav>
 
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="grid size-12 shrink-0 place-items-center rounded-full bg-surface text-ink-500">
-              <CarIcon className="size-6" />
-            </span>
-            <h1 className="text-xl font-black leading-relaxed text-ink-800 md:text-2xl">{title}</h1>
+        <section className="vehicle-detail-hero">
+          <div>
+            <h1 className="text-2xl font-black text-ink-800">{title}</h1>
+            <p className="mt-4 text-sm text-ink-500">
+              {vehicle.yearFrom ? toPersianDigits(vehicle.yearFrom) : ''}
+              {vehicle.yearTo ? ` – ${toPersianDigits(vehicle.yearTo)}` : ''}
+            </p>
+            <div className="mt-5">
+              <SaveVehicleButton vehicleId={vehicle.id} />
+            </div>
           </div>
-          <SaveVehicleButton vehicleId={vehicle.id} />
-        </div>
+          {vehicleAssets[vehicle.slug] && (
+            <Image
+              src={vehicleAssets[vehicle.slug]}
+              alt={title}
+              width={743}
+              height={557}
+              priority
+              className="vehicle-detail-image"
+            />
+          )}
+        </section>
 
-        <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_360px]">
-          <div className="order-2 min-w-0 space-y-8 lg:order-1">
+        <div className="vehicle-detail-layout mt-10">
+          <div className="vehicle-detail-content space-y-8">
             <section className="rounded-card bg-surface-soft p-6 md:p-8">
               <h2 className="text-base font-bold text-ink-800 md:text-lg">مشخصات پایه</h2>
               <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 text-sm sm:grid-cols-3">
@@ -173,13 +198,24 @@ async function VehicleDetailView({ vehicle }: { vehicle: VehicleDetail }) {
                 <Fact label="کد موتور" value={vehicle.engineCode} ltr />
                 <Fact
                   label="حجم موتور"
-                  value={vehicle.displacement ? `${toPersianDigits(vehicle.displacement)} سی‌سی` : null}
+                  value={
+                    vehicle.displacement ? `${toPersianDigits(vehicle.displacement)} سی‌سی` : null
+                  }
                   ltr
                 />
-                <Fact label="سوخت" value={vehicle.fuelType ? FUEL_LABELS[vehicle.fuelType] ?? vehicle.fuelType : null} />
+                <Fact
+                  label="سوخت"
+                  value={
+                    vehicle.fuelType ? (FUEL_LABELS[vehicle.fuelType] ?? vehicle.fuelType) : null
+                  }
+                />
                 <Fact
                   label="گیربکس"
-                  value={vehicle.transmission ? TRANSMISSION_LABELS[vehicle.transmission] ?? vehicle.transmission : null}
+                  value={
+                    vehicle.transmission
+                      ? (TRANSMISSION_LABELS[vehicle.transmission] ?? vehicle.transmission)
+                      : null
+                  }
                 />
               </dl>
 
@@ -189,7 +225,12 @@ async function VehicleDetailView({ vehicle }: { vehicle: VehicleDetail }) {
                     <tbody>
                       {specEntries.map(([key, value]) => (
                         <tr key={key} className="border-b border-ink-100 last:border-b-0">
-                          <th scope="row" className="w-1/3 py-3 text-start font-normal text-ink-500">{key}</th>
+                          <th
+                            scope="row"
+                            className="w-1/3 py-3 text-start font-normal text-ink-500"
+                          >
+                            {key}
+                          </th>
                           <td className="py-3 text-ink-800">{value}</td>
                         </tr>
                       ))}
@@ -202,7 +243,10 @@ async function VehicleDetailView({ vehicle }: { vehicle: VehicleDetail }) {
             <ServiceInfoSection service={vehicle.service} />
 
             <section aria-labelledby="compat-products-heading">
-              <h2 id="compat-products-heading" className="text-base font-bold text-ink-800 md:text-lg">
+              <h2
+                id="compat-products-heading"
+                className="text-base font-bold text-ink-800 md:text-lg"
+              >
                 قطعات سازگار با {vehicle.model}
                 {totalProducts > 0 && (
                   <span className="ms-2 text-sm font-normal text-ink-500">
@@ -228,16 +272,16 @@ async function VehicleDetailView({ vehicle }: { vehicle: VehicleDetail }) {
                   </ButtonLink>
                 </div>
               ) : (
-                <div className="mt-5 space-y-10">
+                <div className="vehicle-product-groups">
                   {groups.map((group) => (
-                    <div key={group.categoryId}>
+                    <div key={group.categoryId} className="vehicle-product-group">
                       <h3 className="mb-4 text-sm font-bold text-ink-700">
                         {group.categoryName}
                         <span className="ms-2 font-normal text-ink-400">
                           ({toPersianDigits(group.items.length)})
                         </span>
                       </h3>
-                      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                      <div className="vehicle-product-grid">
                         {group.items.map((product: ProductSummary) => (
                           <ProductCard key={product.id} product={product} />
                         ))}
@@ -249,7 +293,7 @@ async function VehicleDetailView({ vehicle }: { vehicle: VehicleDetail }) {
             </section>
           </div>
 
-          <aside className="order-1 h-max rounded-card bg-white p-6 shadow-card lg:sticky lg:top-24 lg:order-2">
+          <aside className="vehicle-detail-selector h-max rounded-card bg-white p-6 shadow-card">
             <h2 className="text-base font-bold text-ink-800">خودروی دیگری دارید؟</h2>
             <p className="mt-1 text-xs text-ink-500">با انتخابگر زیر مستقیم به مشخصات آن بروید.</p>
             <div className="mt-5">
@@ -276,14 +320,19 @@ function Fact({ label, value, ltr }: { label: string; value: string | null; ltr?
 /** PRD §21/§22 — service info plus the same conditions disclaimer used on Product Detail's "زمان تعویض" tab. */
 function ServiceInfoSection({ service }: { service: VehicleDetail['service'] }) {
   return (
-    <section aria-labelledby="service-info-heading" className="rounded-card bg-ink-600 p-6 text-white md:p-8">
-      <h2 id="service-info-heading" className="text-base font-bold md:text-lg">اطلاعات سرویس و بازه تعویض</h2>
+    <section
+      aria-labelledby="service-info-heading"
+      className="rounded-card bg-ink-600 p-6 text-white md:p-8"
+    >
+      <h2 id="service-info-heading" className="text-base font-bold md:text-lg">
+        اطلاعات سرویس و بازه تعویض
+      </h2>
 
       {!service ? (
         <p className="mt-3 text-sm text-white/70">اطلاعات سرویس این خودرو هنوز ثبت نشده است.</p>
       ) : (
         <>
-          <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div className="vehicle-service-grid mt-5">
             {service.engineOilGrade && (
               <ServiceStat label="روغن موتور توصیه‌شده" value={service.engineOilGrade} />
             )}
@@ -294,19 +343,34 @@ function ServiceInfoSection({ service }: { service: VehicleDetail['service'] }) 
               />
             )}
             {service.oilChangeKm !== null && (
-              <ServiceStat label="تعویض روغن موتور" value={`هر ${toPersianDigits(service.oilChangeKm)} کیلومتر`} />
+              <ServiceStat
+                label="تعویض روغن موتور"
+                value={`هر ${toPersianDigits(service.oilChangeKm)} کیلومتر`}
+              />
             )}
             {service.oilFilterChangeKm !== null && (
-              <ServiceStat label="تعویض فیلتر روغن" value={`هر ${toPersianDigits(service.oilFilterChangeKm)} کیلومتر`} />
+              <ServiceStat
+                label="تعویض فیلتر روغن"
+                value={`هر ${toPersianDigits(service.oilFilterChangeKm)} کیلومتر`}
+              />
             )}
             {service.airFilterChangeKm !== null && (
-              <ServiceStat label="تعویض فیلتر هوا" value={`هر ${toPersianDigits(service.airFilterChangeKm)} کیلومتر`} />
+              <ServiceStat
+                label="تعویض فیلتر هوا"
+                value={`هر ${toPersianDigits(service.airFilterChangeKm)} کیلومتر`}
+              />
             )}
             {service.cabinFilterChangeKm !== null && (
-              <ServiceStat label="تعویض فیلتر کابین" value={`هر ${toPersianDigits(service.cabinFilterChangeKm)} کیلومتر`} />
+              <ServiceStat
+                label="تعویض فیلتر کابین"
+                value={`هر ${toPersianDigits(service.cabinFilterChangeKm)} کیلومتر`}
+              />
             )}
             {service.fuelFilterChangeKm !== null && (
-              <ServiceStat label="تعویض فیلتر سوخت" value={`هر ${toPersianDigits(service.fuelFilterChangeKm)} کیلومتر`} />
+              <ServiceStat
+                label="تعویض فیلتر سوخت"
+                value={`هر ${toPersianDigits(service.fuelFilterChangeKm)} کیلومتر`}
+              />
             )}
           </div>
 
@@ -344,18 +408,25 @@ async function BrandModelsView({
     <>
       <Header />
 
-      <main className="container-page pb-16 pt-8">
+      <main className="public-page vehicle-detail-page container-page pb-16 pt-8">
+        <SearchBar className="public-search" />
         <nav aria-label="مسیر صفحه" className="mb-6 text-sm text-ink-500">
           <ol className="flex flex-wrap items-center gap-2">
             <li>
-              <Link href="/" className="hover:text-ink-800">خانه</Link>
+              <Link href="/" className="hover:text-ink-800">
+                خانه
+              </Link>
             </li>
             <li aria-hidden>›</li>
             <li>
-              <Link href="/vehicles" className="hover:text-ink-800">اطلاعات خودرو</Link>
+              <Link href="/vehicles" className="hover:text-ink-800">
+                اطلاعات خودرو
+              </Link>
             </li>
             <li aria-hidden>›</li>
-            <li className="font-bold text-ink-800" aria-current="page">{brand.name}</li>
+            <li className="font-bold text-ink-800" aria-current="page">
+              {brand.name}
+            </li>
           </ol>
         </nav>
 
@@ -370,13 +441,17 @@ async function BrandModelsView({
             <p className="mx-auto mt-3 max-w-md text-sm leading-8 text-ink-500">
               قطعه موردنظر خود را برای این برند با عکس یا توضیح برای ما بفرستید.
             </p>
-            <ButtonLink href="/product-request" className="mt-6">ارسال تصویر محصول</ButtonLink>
+            <ButtonLink href="/product-request" className="mt-6">
+              ارسال تصویر محصول
+            </ButtonLink>
           </div>
         ) : (
           <div className="mt-10 grid gap-8 lg:grid-cols-[380px_1fr]">
             <aside className="h-max rounded-card bg-white p-6 shadow-card lg:sticky lg:top-24">
               <h2 className="text-base font-bold text-ink-800">انتخاب مدل و تیپ/موتور</h2>
-              <p className="mt-1 text-xs text-ink-500">مدل و سپس تیپ/موتور {brand.name} خود را انتخاب کنید.</p>
+              <p className="mt-1 text-xs text-ink-500">
+                مدل و سپس تیپ/موتور {brand.name} خود را انتخاب کنید.
+              </p>
               <div className="mt-5">
                 <VehicleJumpSelector brands={[]} lockedBrand={brand} />
               </div>
@@ -386,7 +461,10 @@ async function BrandModelsView({
               <h2 className="mb-4 text-base font-bold text-ink-800">همه مدل‌های {brand.name}</h2>
               <ul className="flex flex-wrap gap-3">
                 {models.map((model) => (
-                  <li key={model} className="rounded-pill bg-surface px-4 py-2 text-sm text-ink-700">
+                  <li
+                    key={model}
+                    className="rounded-pill bg-surface px-4 py-2 text-sm text-ink-700"
+                  >
                     {model}
                   </li>
                 ))}

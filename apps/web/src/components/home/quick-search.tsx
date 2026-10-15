@@ -27,17 +27,29 @@ export function QuickSearch({ brands }: { brands: VehicleBrandOption[] }) {
   const [loadingModels, setLoadingModels] = useState(false);
 
   useEffect(() => {
+    let active = true;
+    setModel('');
     if (!brandSlug) {
       setModels([]);
       setModel('');
+      setLoadingModels(false);
       return;
     }
     setLoadingModels(true);
     api.vehicles
       .models(brandSlug)
-      .then(setModels)
-      .catch(() => setModels([]))
-      .finally(() => setLoadingModels(false));
+      .then((items) => {
+        if (active) setModels(items);
+      })
+      .catch(() => {
+        if (active) setModels([]);
+      })
+      .finally(() => {
+        if (active) setLoadingModels(false);
+      });
+    return () => {
+      active = false;
+    };
   }, [brandSlug]);
 
   const submit = () => {
@@ -54,30 +66,37 @@ export function QuickSearch({ brands }: { brands: VehicleBrandOption[] }) {
   };
 
   const field =
-    'h-14 w-full rounded-pill border border-brand-500 bg-white px-5 text-sm text-ink-800 ' +
+    'quick-field w-full border border-brand-500 bg-transparent text-sm text-ink-800 ' +
     'outline-none transition-colors focus:border-brand-600 disabled:bg-ink-50 disabled:text-ink-400';
 
   return (
     /* From md up the card overlaps the hero, as in the Figma layout. On small
        screens it sits below it — otherwise it covers the hero's CTAs. */
-    <section className="container-page relative z-20 mt-10 md:-mt-28">
-      <div className="rounded-card bg-surface-soft p-7 shadow-card md:p-10">
-        <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
-          <div className="lg:max-w-md">
-            <h2 className="text-xl font-bold text-ink-800">جستجوی سریع</h2>
-            <p className="mt-3 text-sm text-ink-500">
-              یک کد فنی ممکن است برای چندین خودرو مناسب باشد.
-            </p>
+    <section className="quick-search relative z-20">
+      <div className="quick-card">
+        <div className="quick-heading">
+          <div>
+            <h2>جستجوی سریع</h2>
+            <p>یک کد فنی ممکن است برای چندین خودرو مناسب باشد.</p>
           </div>
-          <Logo size="md" className="hidden shrink-0 lg:block" />
+          <Logo size="md" className="quick-logo" />
         </div>
 
-        <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-4 lg:items-end">
+        <form
+          className="quick-fields"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit();
+          }}
+        >
           <label className="block">
             <span className="mb-2 block text-sm text-ink-700">انتخاب برند</span>
             <select
               value={brandSlug}
-              onChange={(event) => setBrandSlug(event.target.value)}
+              onChange={(event) => {
+                setBrandSlug(event.target.value);
+                setModel('');
+              }}
               className={field}
             >
               <option value="">برند خودرو</option>
@@ -97,9 +116,7 @@ export function QuickSearch({ brands }: { brands: VehicleBrandOption[] }) {
               disabled={!brandSlug || loadingModels}
               className={field}
             >
-              <option value="">
-                {loadingModels ? 'در حال بارگذاری…' : 'مدل را انتخاب کنید'}
-              </option>
+              <option value="">{loadingModels ? 'در حال بارگذاری…' : 'مدل را انتخاب کنید'}</option>
               {models.map((item) => (
                 <option key={item} value={item}>
                   {item}
@@ -115,14 +132,15 @@ export function QuickSearch({ brands }: { brands: VehicleBrandOption[] }) {
               onChange={(event) => setCode(event.target.value)}
               onKeyDown={(event) => event.key === 'Enter' && submit()}
               placeholder="کد فنی را وارد کنید"
-              className={`${field} ltr-num text-start`}
+              dir="auto"
+              className={field}
             />
           </label>
 
-          <Button onClick={submit} size="lg" className="h-14 w-full">
+          <Button type="submit" size="lg" className="quick-submit w-full">
             جستجو در محصولات
           </Button>
-        </div>
+        </form>
       </div>
     </section>
   );

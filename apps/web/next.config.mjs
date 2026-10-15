@@ -6,6 +6,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  devIndicators: false,
   // Pin the monorepo root explicitly. Without this Next infers it from the
   // nearest lockfile, which in a workspace setup can resolve outside the repo.
   outputFileTracingRoot: path.join(here, '../..'),
